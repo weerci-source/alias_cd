@@ -1,8 +1,12 @@
-cd ~/far2l-dev/src/build
-make alias_cd
-cp plugins/alias_cd/alias_cd.far-plug-wide ~/far2l-dev/install/share/far2l/Plugins/
-
+cp ~/far2l-dev/src/plugins/alias_cd/build/alias_cd.far-plug-wide ~/far2l-dev/install/share/far2l/Plugins/
 ~/far2l-dev/install/bin/far2l --tty
 
-смотреть лог
-tail -f /tmp/alias_cd.log
+#смотреть лог здесь /tmp/alias_cd.log
+
+-test
+# Создаём каталоги
+mkdir -p /home/dima/far2l-dev/install/lib/far2l/Plugins/alias_cd/plug
+
+# Копируем собранный .far-plug-wide (если у вас несколько версий, возьмите из build или build-release)
+cp /home/dima/far2l-dev/src/plugins/alias_cd/build-release/alias_cd.far-plug-wide \
+   /home/dima/far2l-dev/install/lib/far2l/Plugins/alias_cd/plug/
