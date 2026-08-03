@@ -3,11 +3,6 @@
         "build": true,
         "build-release": true,
 		".gitignore": true,
-        "**/node_modules": true,
-        "**/out": true,
         "**/.git": true,
-        "**/package-lock.json": true,
-        "**/eslint.config.mjs": true,
-        "**/vsc-extension-quickstart.md": true,
     },
 }
