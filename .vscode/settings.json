@@ -1,27 +1,13 @@
 {
-    "editor.tokenColorCustomizations": {
-        "textMateRules": [
-            {
-                "scope": "googletest.failed",
-                "settings": {
-                    "foreground": "#f00"
-                }
-            },
-            {
-                "scope": "googletest.passed",
-                "settings": {
-                    "foreground": "#0f0"
-                }
-            },
-            {
-                "scope": "googletest.run",
-                "settings": {
-                    "foreground": "#0f0"
-                }
-            }
-        ]
+    "files.exclude": {
+        "build": true,
+        "build-release": true,
+		".gitignore": true,
+        "**/node_modules": true,
+        "**/out": true,
+        "**/.git": true,
+        "**/package-lock.json": true,
+        "**/eslint.config.mjs": true,
+        "**/vsc-extension-quickstart.md": true,
     },
-    "gtest-adapter.debugConfig": "Debug Logger Tests",
-    "gtest-adapter.supportLocation": true,
-    "cmake.ctest.neverDebugTestsWithLaunchConfiguration": false
 }

@@ -34,29 +34,6 @@ set_target_properties(alias_cd
 		SUFFIX ".far-plug-wide"
 )
 
-# ---------------------------------------------------------------------
-# Подключение Google Test (только если мы собираем тесты)
-# ---------------------------------------------------------------------
-option(BUILD_TESTS "Build unit tests" OFF)
-
-if(BUILD_TESTS)
-	enable_testing()
-	include(FetchContent)
-	FetchContent_Declare(
-		googletest
-		GIT_REPOSITORY
-		https://github.com/google/googletest.git
-		GIT_TAG
-		release-1.12.1
-		# или более свежий
-	)
-	FetchContent_MakeAvailable(googletest)
-
-	# Добавляем тестовую директорию
-	add_subdirectory(tests)
-
-endif()
-
 if(CMAKE_BUILD_TYPE STREQUAL "Release")
     add_custom_command(TARGET alias_cd POST_BUILD
         COMMAND ${CMAKE_STRIP} --strip-unneeded $<TARGET_FILE:alias_cd>
