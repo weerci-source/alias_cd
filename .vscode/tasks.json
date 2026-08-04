@@ -1,20 +1,21 @@
 {
     "version": "2.0.0",
     "tasks": [
-        // 1. Одна универсальная задача на конфигурацию
         {
             "label": "CMake: Configure",
             "type": "shell",
             "command": "cmake",
             "args": [
-                "-B", "build",
-                "-S", ".",
-                "-DCMAKE_BUILD_TYPE=${input:buildType}"
+                "-B",
+                "build",
+                "-S",
+                ".",
+                "-DCMAKE_BUILD_TYPE=Debug",
+                "-DBUILD_TESTS=OFF"
             ],
             "group": "build",
             "problemMatcher": []
         },
-        // 2. Одна универсальная задача на сборку (зависит от конфигурации)
         {
             "label": "CMake: Build",
             "type": "shell",
@@ -23,34 +24,99 @@
                 "kind": "build",
                 "isDefault": true
             },
-            "dependsOn": ["CMake: Configure"],
-            "problemMatcher": ["$gcc"]
+            "dependsOn": [
+                "CMake: Configure"
+            ],
+            "problemMatcher": [
+                "$gcc"
+            ]
         },
-        // 3. Сборка + запуск (для быстрой проверки)
+        {
+            "label": "Run All Tests",
+            "type": "shell",
+            "command": "ctest",
+            "args": [
+                "--test-dir",
+                "build",
+                "--output-on-failure"
+            ],
+            "group": "test",
+            "dependsOn": [
+                "CMake: Build"
+            ],
+            "problemMatcher": [],
+            "detail": "Run all tests via CTest"
+        },
+        {
+            "label": "Release: Configure",
+            "type": "shell",
+            "command": "cmake",
+            "args": [
+                "-B",
+                "build-release",
+                "-S",
+                ".",
+                "-DCMAKE_BUILD_TYPE=Release",
+                "-DBUILD_TESTS=OFF"
+            ],
+            "group": "none",
+            "problemMatcher": []
+        },
+        {
+            "label": "Release: Build",
+            "type": "shell",
+            "command": "cmake",
+            "args": [
+                "--build",
+                "build-release",
+                "--config",
+                "Release"
+            ],
+            "group": "none",
+            "dependsOn": [
+                "Release: Configure"
+            ],
+            "problemMatcher": [
+                "$gcc"
+            ]
+        },
+        {
+            "label": "Release: Package",
+            "type": "shell",
+            "command": "tar",
+            "args": [
+                "-czf",
+                "${workspaceFolder}/alias_cd-plugin-release.tar.gz",
+                "-C",
+                "${workspaceFolder}/build-release",
+                "alias_cd.far-plug-wide"
+            ],
+            "group": "none",
+            "dependsOn": [
+                "Release: Build"
+            ],
+            "problemMatcher": []
+        },
+        // Главная задача – просто запустите её, и она выполнит всё
+        {
+            "label": "Release: Build and Package",
+            "dependsOrder": "sequence",
+            "dependsOn": [
+                "Release: Package"
+            ],
+            "problemMatcher": []
+        },
         {
             "label": "Build, Copy & Run far2l",
             "type": "shell",
             "command": "rm -f ${workspaceFolder}/build/alias_cd.far-plug-wide && cmake --build build && cp ${workspaceFolder}/build/alias_cd.far-plug-wide /home/dima/far2l-dev/install/lib/far2l/Plugins/alias_cd/plug/ && LD_LIBRARY_PATH=/home/dima/far2l-dev/install/lib/far2l /home/dima/far2l-dev/install/bin/far2l",
             "group": "none",
-            "dependsOn": ["CMake: Configure"],
-            "problemMatcher": ["$gcc"]
-        },
-        // 4. Сборка Release с упаковкой (опционально)
-        {
-            "label": "Release: Build and Package",
-            "type": "shell",
-            "command": "cmake --build build --config Release && tar -czf ${workspaceFolder}/alias_cd-plugin-release.tar.gz -C ${workspaceFolder}/build alias_cd.far-plug-wide",
-            "dependsOn": ["CMake: Configure"],
-            "problemMatcher": ["$gcc"]
-        }
-    ],
-    "inputs": [
-        {
-            "id": "buildType",
-            "description": "Выберите тип сборки",
-            "type": "pickString",
-            "options": ["Debug", "Release"],
-            "default": "Debug"
+            "dependsOn": [
+                "CMake: Configure"
+            ],
+            "problemMatcher": [
+                "$gcc"
+            ]
         }
     ]
 }

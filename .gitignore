@@ -2,12 +2,15 @@
 # Сборка и бинарные файлы
 # ================================
 build/
+build-test/
+build-release/
 cmake-build-*/
 out/
 bin/
 obj/
 lib/
 dist/
+*.gz
 *.o
 *.obj
 *.exe
@@ -147,3 +150,4 @@ htmlcov/
 *.public
 merge.txt
 struct.txt
+structure.txt

@@ -2,7 +2,12 @@
     "files.exclude": {
         "build": true,
         "build-release": true,
-		".gitignore": true,
+        ".gitignore": true,
         "**/.git": true,
     },
+    "cmake.configureArgs": [
+        "-DBUILD_TESTING=OFF"
+    ],
+    "testMate.cpp.test.executables": "${workspaceFolder}/build/tests/*",
+    "cmake.autoBuild": "onSave" // или "onFileChange"
 }
