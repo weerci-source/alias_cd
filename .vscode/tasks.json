@@ -63,56 +63,12 @@
             "problemMatcher": []
         },
         {
-            "label": "Release: Build",
+            "label": "Release: Build, Copy, Package & Run far2l",
             "type": "shell",
-            "command": "cmake",
-            "args": [
-                "--build",
-                "build-release",
-                "--config",
-                "Release"
-            ],
+            "command": "cmake --build ${workspaceFolder}/build-release --config Release && cp ${workspaceFolder}/build-release/alias_cd.far-plug-wide /home/dima/far2l-dev/install/lib/far2l/Plugins/alias_cd/plug/ && tar -czf ${workspaceFolder}/alias_cd-plugin-release.tar.gz -C ${workspaceFolder}/build-release alias_cd.far-plug-wide && LD_LIBRARY_PATH=/home/dima/far2l-dev/install/lib/far2l /home/dima/far2l-dev/install/bin/far2l",
             "group": "none",
             "dependsOn": [
                 "Release: Configure"
-            ],
-            "problemMatcher": [
-                "$gcc"
-            ]
-        },
-        {
-            "label": "Release: Package",
-            "type": "shell",
-            "command": "tar",
-            "args": [
-                "-czf",
-                "${workspaceFolder}/alias_cd-plugin-release.tar.gz",
-                "-C",
-                "${workspaceFolder}/build-release",
-                "alias_cd.far-plug-wide"
-            ],
-            "group": "none",
-            "dependsOn": [
-                "Release: Build"
-            ],
-            "problemMatcher": []
-        },
-        // Главная задача – просто запустите её, и она выполнит всё
-        {
-            "label": "Release: Build and Package",
-            "dependsOrder": "sequence",
-            "dependsOn": [
-                "Release: Package"
-            ],
-            "problemMatcher": []
-        },
-        {
-            "label": "Build, Copy & Run far2l",
-            "type": "shell",
-            "command": "rm -f ${workspaceFolder}/build/alias_cd.far-plug-wide && cmake --build build && cp ${workspaceFolder}/build/alias_cd.far-plug-wide /home/dima/far2l-dev/install/lib/far2l/Plugins/alias_cd/plug/ && LD_LIBRARY_PATH=/home/dima/far2l-dev/install/lib/far2l /home/dima/far2l-dev/install/bin/far2l",
-            "group": "none",
-            "dependsOn": [
-                "CMake: Configure"
             ],
             "problemMatcher": [
                 "$gcc"

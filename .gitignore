@@ -1,153 +1,37 @@
-# ================================
-# Сборка и бинарные файлы
-# ================================
+# Папки сборки
 build/
-build-test/
 build-release/
+build-test/
 cmake-build-*/
-out/
-bin/
-obj/
-lib/
-dist/
-*.gz
-*.o
-*.obj
-*.exe
-*.dll
-*.so
-*.dylib
-*.a
-*.lib
-*.out
-*.app
-*.exe
 
-# ================================
-# CMake
-# ================================
+# Объектные файлы
+*.o
+*.so
+*.a
+*.lo
+*.la
+
+# CMake-генераты
 CMakeFiles/
 cmake_install.cmake
 Makefile
 CMakeUserPresets.json
-*.cmake
-!CMakeLists.txt
-!*.cmake.in
 CTestTestfile.cmake
 _CPack_Packages/
-cmake-build-debug/
-cmake-build-release/
 
-# ================================
-# Отладочная информация
-# ================================
-*.dSYM/
-*.pdb
-*.ilk
-*.map
-*.debug
-*.sym
-*.gcda
-*.gcno
-*.gcov
-gmon.out
-*.prof
-*.profraw
-
-# ================================
-# IDE и редакторы
-# ================================
-.idea/
-*.swp
-*.swo
-*~
-*.bak
-*.tmp
-.DS_Store
-Thumbs.db
-*.suo
-*.user
-*.userosscache
-*.sln.docstates
+# VS Code
+.vscode/
 *.code-workspace
-.vs/
-*.VC.db
-*.VC.opendb
 
-# ================================
-# Системные файлы
-# ================================
-.DS_Store
-.DS_Store?
-._*
-.Spotlight-V100
-.Trashes
-ehthumbs.db
-Thumbs.db
-Desktop.ini
+# Архивы (если создаёте)
+*.tar.gz
+*.zip
+*.7z
 
-# ================================
-# Логи и временные файлы
-# ================================
+# Временные и системные файлы
 *.log
 *.tmp
-*.temp
 *.cache
-*.pid
-*.seed
-*.pid.lock
-
-# ================================
-# Архивы и пакеты
-# ================================
-*.zip
-*.tar.gz
-*.tgz
-*.rar
-*.7z
-*.deb
-*.rpm
-*.dmg
-*.pkg
-*.msi
-*.apk
-*.jar
-*.war
-*.ear
-
-# ================================
-# Профилирование и покрытие кода
-# ================================
-*.gcov
-*.gcda
-*.gcno
-coverage/
-htmlcov/
-*.coverage
-
-# ================================
-# Конфигурационные файлы пользователя
-# ================================
-*.user
-*.userosscache
-*.sln.docstates
-*.local
-*.config
-.env
-.env.local
-.env.*.local
-
-# ================================
-# Специфичные для проекта
-# ================================
-*.secret
-*.key
-*.pem
-*.cert
-*.crt
-*.key
-*.private
-*.public
-merge.txt
-struct.txt
 structure.txt
+*~
+.DS_Store
