@@ -17,8 +17,9 @@ std::expected<Alias, std::error_code> parseAliasLine(const std::string& line) no
 
     std::string namePart = line.substr(0, pos);
     std::string pathPart = line.substr(pos + 1);
-    trim(namePart);
-    trim(pathPart);
+    // 🔥 ИСПРАВЛЕНИЕ: присваиваем результат trim обратно
+    namePart = trim(namePart);
+    pathPart = trim(pathPart);
 
     if (namePart.empty() || pathPart.empty()) {
         return std::unexpected(std::make_error_code(std::errc::invalid_argument));

@@ -1,6 +1,9 @@
 {
     "version": "2.0.0",
     "tasks": [
+        // ================================================================
+        // Основная сборка (Debug) – без тестов
+        // ================================================================
         {
             "label": "CMake: Configure",
             "type": "shell",
@@ -11,7 +14,7 @@
                 "-S",
                 ".",
                 "-DCMAKE_BUILD_TYPE=Debug",
-                "-DBUILD_TESTS=OFF"
+                "-DBUILD_TESTING=OFF"
             ],
             "group": "build",
             "problemMatcher": []
@@ -31,22 +34,9 @@
                 "$gcc"
             ]
         },
-        {
-            "label": "Run All Tests",
-            "type": "shell",
-            "command": "ctest",
-            "args": [
-                "--test-dir",
-                "build",
-                "--output-on-failure"
-            ],
-            "group": "test",
-            "dependsOn": [
-                "CMake: Build"
-            ],
-            "problemMatcher": [],
-            "detail": "Run all tests via CTest"
-        },
+        // ================================================================
+        // Release-сборка
+        // ================================================================
         {
             "label": "Release: Configure",
             "type": "shell",
@@ -57,7 +47,7 @@
                 "-S",
                 ".",
                 "-DCMAKE_BUILD_TYPE=Release",
-                "-DBUILD_TESTS=ON"
+                "-DBUILD_TESTING=OFF"
             ],
             "group": "none",
             "problemMatcher": []
@@ -73,6 +63,68 @@
             "problemMatcher": [
                 "$gcc"
             ]
+        },
+        // ================================================================
+        // ЗАДАЧИ ДЛЯ ТЕСТОВ (используют отдельную папку build-test)
+        // ================================================================
+        {
+            "label": "Test: Configure",
+            "type": "shell",
+            "command": "cmake",
+            "args": [
+                "-B",
+                "build-test",
+                "-S",
+                ".",
+                "-DCMAKE_BUILD_TYPE=Debug",
+                "-DBUILD_TESTING=ON"
+            ],
+            "group": "build",
+            "problemMatcher": []
+        },
+        {
+            "label": "Test: Build",
+            "type": "shell",
+            "command": "cmake --build build-test --target test_utf_conversions test_writer test_alias_manager test_utilites",
+            "group": "build",
+            "dependsOn": [
+                "Test: Configure"
+            ],
+            "problemMatcher": [
+                "$gcc"
+            ]
+        },
+        {
+            "label": "Test: Build and Run",
+            "type": "shell",
+            "command": "cmake --build build-test --target test_utf_conversions test_writer test_alias_manager test_utilites && ctest --test-dir build-test --output-on-failure",
+            "group": "test",
+            "dependsOn": [
+                "Test: Configure"
+            ],
+            "problemMatcher": [
+                "$gcc"
+            ],
+            "detail": "Build all tests and run them"
+        },
+        // ================================================================
+        // Запуск уже собранных тестов (без пересборки)
+        // ================================================================
+        {
+            "label": "Run All Tests",
+            "type": "shell",
+            "command": "ctest",
+            "args": [
+                "--test-dir",
+                "build-test",
+                "--output-on-failure"
+            ],
+            "group": "test",
+            "dependsOn": [
+                "Test: Build"
+            ],
+            "problemMatcher": [],
+            "detail": "Run all tests via CTest (build-test)"
         }
     ]
 }
