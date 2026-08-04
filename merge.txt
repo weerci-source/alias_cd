@@ -1,861 +1,303 @@
-// .vscode/tasks.json
-{
-    "version": "2.0.0",
-    "tasks": [
-        {
-            "label": "CMake: Configure",
-            "type": "shell",
-            "command": "cmake",
-            "args": [
-                "-B",
-                "build",
-                "-S",
-                ".",
-                "-DCMAKE_BUILD_TYPE=Debug",
-                "-DBUILD_TESTS=OFF"
-            ],
-            "group": "build",
-            "problemMatcher": []
-        },
-        {
-            "label": "CMake: Build",
-            "type": "shell",
-            "command": "rm -f ${workspaceFolder}/build/alias_cd.far-plug-wide && cmake --build build",
-            "group": {
-                "kind": "build",
-                "isDefault": true
-            },
-            "dependsOn": [
-                "CMake: Configure"
-            ],
-            "problemMatcher": [
-                "$gcc"
-            ]
-        },
-        {
-            "label": "Run All Tests",
-            "type": "shell",
-            "command": "ctest",
-            "args": [
-                "--test-dir",
-                "build",
-                "--output-on-failure"
-            ],
-            "group": "test",
-            "dependsOn": [
-                "CMake: Build"
-            ],
-            "problemMatcher": [],
-            "detail": "Run all tests via CTest"
-        },
-        {
-            "label": "Release: Configure",
-            "type": "shell",
-            "command": "cmake",
-            "args": [
-                "-B",
-                "build-release",
-                "-S",
-                ".",
-                "-DCMAKE_BUILD_TYPE=Release",
-                "-DBUILD_TESTS=OFF"
-            ],
-            "group": "none",
-            "problemMatcher": []
-        },
-        {
-            "label": "Release: Build, Copy, Package & Run far2l",
-            "type": "shell",
-            "command": "cmake --build ${workspaceFolder}/build-release --config Release && cp ${workspaceFolder}/build-release/alias_cd.far-plug-wide /home/dima/far2l-dev/install/lib/far2l/Plugins/alias_cd/plug/ && tar -czf ${workspaceFolder}/alias_cd-plugin-release.tar.gz -C ${workspaceFolder}/build-release alias_cd.far-plug-wide && LD_LIBRARY_PATH=/home/dima/far2l-dev/install/lib/far2l /home/dima/far2l-dev/install/bin/far2l",
-            "group": "none",
-            "dependsOn": [
-                "Release: Configure"
-            ],
-            "problemMatcher": [
-                "$gcc"
-            ]
-        }
-    ]
-}
-
-// .vscode/launch.json
-{
-    "version": "0.2.0",
-    "configurations": [
-        // Конфигурация для отладки плагина FAR (если нужно)
-        {
-            "name": "Debug FAR Plugin",
-            "type": "cppdbg",
-            "request": "launch",
-            "preLaunchTask": "CMake: Build",
-            "program": "${workspaceFolder}/build/alias_cd.far-plug-wide",
-            "args": [],
-            "stopAtEntry": false,
-            "cwd": "${workspaceFolder}",
-            "environment": [],
-            "externalConsole": false,
-            "MIMode": "gdb",
-            "setupCommands": [
-                {
-                    "description": "Enable pretty-printing for gdb",
-                    "text": "-enable-pretty-printing",
-                    "ignoreFailures": true
-                }
-            ]
-        }
-    ]
-}
-
-// .vscode/settings.json
-{
-    "files.exclude": {
-        "build": true,
-        "build-release": true,
-        ".gitignore": true,
-        "**/.git": true,
-    },
-    "cmake.configureArgs": [
-        "-DBUILD_TESTING=OFF"
-    ],
-    "testMate.cpp.test.executables": "${workspaceFolder}/build/tests/*",
-    "cmake.autoBuild": "onSave" // или "onFileChange"
-}
-
-// .vscode/c_cpp_properties.json
-{
-    "configurations": [
-        {
-            "name": "Linux",
-            "includePath": [
-                "${workspaceFolder}/**",
-                "/home/dima/far2l-dev/src/far2l/far2sdk/"
-            ],
-            "defines": [],
-            "compilerPath": "/usr/bin/gcc",
-            "cStandard": "c23",
-            "cppStandard": "gnu++23",
-            "intelliSenseMode": "linux-gcc-x64"
-        }
-    ],
-    "version": 4
-}
-
-// src/utils/writer.h
-#pragma once
-
-#include <mutex>
-#include <expected>
-#include <iostream>
-#include <fstream>
-#include <functional>
-
-#include "utilites.h"
-#include "formatters.h"
-
-namespace writer
-{
-	struct Context
-	{
-		std::ofstream file;
-		std::mutex mtx;
-		Formatter frm = defaultFormatter;
-	};
-
-	Context makeContext();
-
-	// Инициализация для конкретного контекста
-	std::expected<void, std::error_code> init(Context& ctx, const std::string& filename);
-
-	std::expected<void, std::error_code> write(Context& ctx, const std::string& msg, Formatter frm = nullptr);
-
-	std::expected<void, std::error_code> write(Context& ctx, const std::vector<std::string>& msgs, Formatter frm = nullptr);
-
-	void close(Context& ctx);
-
-	// Вариант 1: возвращает вектор (с перемещением / RVO)
-	std::expected<std::vector<std::string>, std::error_code> readAllLines(const std::string& filename);
-
-	// Вариант 2: заполняет переданный вектор (эффективнее)
-	std::expected<void, std::error_code> readAllLines(const std::string& filename, std::vector<std::string>& out);
-	
-	// Расширение для перезаписи файла
-	std::expected<void, std::error_code> openOverwrite(Context& ctx, const std::string& filename) noexcept;
-}
-
-// src/utils/formatters.h
-#pragma once
-
-#include <string_view>
-#include <string>
-
-#include "utilites.h"
-
-namespace writer
-{
-
-    using Formatter = std::function<std::string(std::string_view)>;
-
-    inline auto logFormatter = [](std::string_view level)
-    {
-        return [level](std::string_view msg)
-        {
-            return "[" + currentTime() + "] " + std::string(level) + ": " + std::string(msg);
-        };
-    };
-
-    inline auto defaultFormatter = [](std::string_view msg)
-    {
-            return std::string(msg) + "\n";
-    };
-}
-
-// src/utils/utilites.h
-#include <string>
-#include <chrono>
-#include <expected>
-
-// Получить текущую дату и время в формате "YYYY-MM-DD HH:MM:SS"
-std::string currentTime();
-
-// Инициализация локали (вызывать один раз при загрузке плагина)
-std::expected<void, std::error_code> initLocale();
-
-// Преобразование UTF-8 → wstring
-std::wstring UTF8ToWString(const std::string &);
-
-// Преобразование wstring → UTF-8
-std::string WStringToUTF8(const std::wstring &);
-
-// Получение текущей директории
-std::expected<std::wstring, std::error_code> getCurrentDirW() noexcept;
-
-// Установка текущей директории
-std::expected<void, std::error_code> setCurrentDirW(const std::wstring &) noexcept;
-
-// Обрезка пробелов (возвращает новую utf-8 строку, не модифицирует исходную)
-std::wstring trim(const std::wstring &);
-
-// Обрезка пробелов (возвращает новую utf-16 строку, не модифицирует исходную)
-std::string trim(const std::string &);
-
-
-// src/utils/utilites.cpp
-#include <string>
-#include <chrono>
-
-#include "utilites.h"
-#include <expected>
+// tests/models/test_alias_manager.cpp
+#include <gtest/gtest.h>
 #include <filesystem>
-
-std::string currentTime()
-{
-    auto now = std::chrono::system_clock::now();
-    auto in_time_t = std::chrono::system_clock::to_time_t(now);
-    std::tm bt;
-    localtime_r(&in_time_t, &bt);
-    std::ostringstream oss;
-    oss << std::put_time(&bt, "%Y-%m-%d %H:%M:%S");
-    return oss.str();
-}
-
-std::expected<void, std::error_code> initLocale()
-{
-    const char *result = std::setlocale(LC_ALL, "en_US.UTF-8");
-    if (result == nullptr)
-    {
-        // Не удалось установить локаль – возвращаем ошибку
-        return std::unexpected(
-            std::make_error_code(std::errc::invalid_argument));
-    }
-    return {};
-}
-
-std::wstring UTF8ToWString(const std::string &utf8)
-{
-    if (utf8.empty())
-        return {};
-    size_t len = mbstowcs(nullptr, utf8.c_str(), 0);
-    if (len == (size_t)-1)
-        return {};
-    std::wstring result(len, L'\0');
-    mbstowcs(&result[0], utf8.c_str(), len + 1);
-    return result;
-}
-
-std::string WStringToUTF8(const std::wstring &wstr)
-{
-    if (wstr.empty())
-        return {};
-    size_t len = wcstombs(nullptr, wstr.c_str(), 0);
-    if (len == (size_t)-1)
-        return {};
-    std::string result(len, '\0');
-    wcstombs(&result[0], wstr.c_str(), len + 1);
-    return result;
-}
-
-std::expected<std::wstring, std::error_code> getCurrentDirW() noexcept
-{
-    std::filesystem::path current;
-    try
-    {
-        current = std::filesystem::current_path();
-    }
-    catch (const std::filesystem::filesystem_error &e)
-    {
-        // Преобразуем исключение в error_code
-        return std::unexpected(e.code());
-    }
-    catch (...)
-    {
-        return std::unexpected(std::make_error_code(std::errc::io_error));
-    }
-    return current.wstring(); // или UTF8ToWString(current.string())
-}
-
-std::expected<void, std::error_code> setCurrentDirW(const std::wstring &path) noexcept
-{
-    try
-    {
-        std::filesystem::current_path(path);
-    }
-    catch (const std::filesystem::filesystem_error &e)
-    {
-        return std::unexpected(e.code());
-    }
-    catch (...)
-    {
-        return std::unexpected(std::make_error_code(std::errc::io_error));
-    }
-    return {};
-}
-
-std::wstring trim(const std::wstring &s)
-{
-    auto first = s.find_first_not_of(L" \t\n\r");
-    if (first == std::wstring::npos)
-    {
-        return {};
-    }
-    auto last = s.find_last_not_of(L" \t\n\r");
-    return s.substr(first, last - first + 1);
-}
-
-std::string trim(const std::string &s)
-{
-    auto first = s.find_first_not_of(" \t\n\r");
-    if (first == std::string::npos)
-    {
-        return {};
-    }
-    auto last = s.find_last_not_of(" \t\n\r");
-    return s.substr(first, last - first + 1);
-}
-
-
-// src/utils/writer.cpp
-#include <mutex>
-#include <expected>
-#include <iostream>
 #include <fstream>
-#include <functional>
-
-#include "utilites.h"
-#include "formatters.h"
-#include "writer.h"
-
-namespace writer
-{
-	Context makeContext()
-	{
-		return Context();
-	}
-
-	std::expected<void, std::error_code> init(Context& ctx, const std::string& filename)
-	{
-		std::lock_guard<std::mutex> lock(ctx.mtx);
-		if (ctx.file.is_open())
-		{
-			ctx.file.close();
-		}
-		ctx.file.open(filename, std::ios::out | std::ios::app);
-		if (!ctx.file.is_open())
-		{
-			return std::unexpected(
-				std::make_error_code(std::errc::no_such_file_or_directory));
-		}
-		return {};
-	}
-
-	std::expected<void, std::error_code> write(Context& ctx, const std::string& msg, Formatter frm)
-	{
-		std::lock_guard<std::mutex> lock(ctx.mtx);
-		if (!ctx.file.is_open())
-		{
-			std::cerr << "[LOGGER] " << msg << std::endl;
-			return std::unexpected(
-				std::make_error_code(std::errc::bad_file_descriptor));
-		}
-		ctx.file << (frm ? frm(msg) : ctx.frm(msg));
-		ctx.file.flush();
-		if (ctx.file.fail())
-		{
-			return std::unexpected(
-				std::make_error_code(std::errc::io_error));
-		}
-		return {};
-	}
-
-	std::expected<void, std::error_code> write(Context& ctx, const std::vector<std::string>& msgs, Formatter frm)
-	{
-		std::lock_guard<std::mutex> lock(ctx.mtx);
-		if (!ctx.file.is_open())
-		{
-			return std::unexpected(
-				std::make_error_code(std::errc::bad_file_descriptor));
-		}
-		for (const auto& msg : msgs)
-		{
-			ctx.file << (frm ? frm(msg) : ctx.frm(msg));
-		}
-		ctx.file.flush();
-		if (ctx.file.fail())
-		{
-			return std::unexpected(
-				std::make_error_code(std::errc::io_error));
-		}
-		return {};
-	}
-
-	void close(Context& ctx)
-	{
-		std::lock_guard<std::mutex> lock(ctx.mtx);
-		if (ctx.file.is_open())
-		{
-			ctx.file.close();
-		}
-	}
-
-	std::expected<std::vector<std::string>, std::error_code> readAllLines(const std::string& filename)
-	{
-		std::ifstream inFile(filename);
-		if (!inFile.is_open())
-		{
-			return std::unexpected(
-				std::make_error_code(std::errc::no_such_file_or_directory));
-		}
-
-		std::vector<std::string> lines;
-		std::string line;
-		while (std::getline(inFile, line))
-		{
-			if (!line.empty())
-			{ // пропускаем пустые строки (опционально)
-				lines.push_back(line);
-			}
-		}
-
-		if (inFile.fail() && !inFile.eof())
-		{
-			return std::unexpected(
-				std::make_error_code(std::errc::io_error));
-		}
-		return lines;
-	}
-
-	std::expected<void, std::error_code> readAllLines(const std::string& filename, std::vector<std::string>& out)
-	{
-		std::ifstream inFile(filename);
-		if (!inFile.is_open())
-		{
-			return std::unexpected(
-				std::make_error_code(std::errc::no_such_file_or_directory));
-		}
-
-		out.clear(); // заменяем содержимое (можно убрать, если нужно дополнять)
-		// опционально: out.reserve(...) если знаете размер
-
-		std::string line;
-		while (std::getline(inFile, line))
-		{
-			if (!line.empty())
-			{
-				out.push_back(line);
-			}
-		}
-
-		if (inFile.fail() && !inFile.eof())
-		{
-			return std::unexpected(
-				std::make_error_code(std::errc::io_error));
-		}
-		return {};
-	}
-
-	std::expected<void, std::error_code> openOverwrite(Context& ctx, const std::string& filename) noexcept {
-
-		std::lock_guard<std::mutex> lock(ctx.mtx);
-		if (ctx.file.is_open()) {
-			ctx.file.close();
-		}
-		ctx.file.open(filename, std::ios::out | std::ios::trunc);
-		if (!ctx.file.is_open()) {
-			return std::unexpected(std::make_error_code(std::errc::no_such_file_or_directory));
-		}
-		return {};
-	}
-}
-
-// src/models/alias.cpp
-#include "alias.h"
-#include "../utils/utilites.h"   
-
-bool isValidAlias(const Alias& a) noexcept {
-    return !a.name.empty() && !a.path.empty();
-}
-
-std::expected<Alias, std::error_code> parseAliasLine(const std::string& line) noexcept {
-    if (line.empty() || line[0] == '#') {
-        return std::unexpected(std::make_error_code(std::errc::invalid_argument));
-    }
-
-    size_t pos = line.find('=');
-    if (pos == std::string::npos) {
-        return std::unexpected(std::make_error_code(std::errc::invalid_argument));
-    }
-
-    std::string namePart = line.substr(0, pos);
-    std::string pathPart = line.substr(pos + 1);
-    trim(namePart);
-    trim(pathPart);
-
-    if (namePart.empty() || pathPart.empty()) {
-        return std::unexpected(std::make_error_code(std::errc::invalid_argument));
-    }
-
-    Alias a;
-    a.name = UTF8ToWString(namePart);
-    a.path = UTF8ToWString(pathPart);
-
-    if (!isValidAlias(a)) {
-        return std::unexpected(std::make_error_code(std::errc::invalid_argument));
-    }
-    return a;
-}
-
-std::string serializeAlias(const Alias& a) noexcept {
-    std::string nameUtf8 = WStringToUTF8(a.name);
-    std::string pathUtf8 = WStringToUTF8(a.path);
-    return nameUtf8 + "=" + pathUtf8;
-}
-
-// src/models/alias_manager.cpp
-#include "alias_manager.h"
-#include "../utils/writer.h"
-#include "../utils/utilites.h"
-#include <unistd.h>
-#include <pwd.h>
-#include <sys/stat.h>
-#include <iostream>
-
-AliasManager& AliasManager::Instance() {
-	static AliasManager instance;
-	return instance;
-}
-
-std::wstring AliasManager::getDefaultFilePath() noexcept {
-	const char* home = getenv("HOME");
-	if (!home) {
-		struct passwd* pw = getpwuid(getuid());
-		if (pw) home = pw->pw_dir;
-	}
-	if (!home) {
-		std::cerr << "Could not determine home directory\n";
-		return L"";
-	}
-	std::string dir = std::string(home) + "/.far2l";
-	mkdir(dir.c_str(), 0755);
-	return UTF8ToWString(dir + "/aliases");
-}
-
-// Инициализация
-std::expected<void, std::error_code> AliasManager::init(const std::wstring& filePath) noexcept {
-	filePath_ = filePath.empty() ? getDefaultFilePath() : filePath;
-	if (filePath_.empty()) {
-		return std::unexpected(std::make_error_code(std::errc::no_such_file_or_directory));
-	}
-
-	// Инициализируем контекст для записи (сразу перезаписываем, но пока файл не создаём)
-	std::string pathUtf8 = WStringToUTF8(filePath_);
-	return writer::openOverwrite(ctx_, pathUtf8);
-}
-
-// Загрузка
-std::expected<void, std::error_code> AliasManager::load() noexcept {
-	if (filePath_.empty()) {
-		auto initResult = init(L"");
-		if (!initResult) {
-			return std::unexpected(initResult.error());
-		}
-	}
-
-	std::string pathUtf8 = WStringToUTF8(filePath_);
-	auto linesResult = writer::readAllLines(pathUtf8);
-	if (!linesResult) {
-		// Если файл не существует, считаем это успехом (пустой список)
-		if (linesResult.error() == std::make_error_code(std::errc::no_such_file_or_directory)) {
-			aliases_.clear();
-			return {};
-		}
-		return std::unexpected(linesResult.error());
-	}
-
-	aliases_.clear();
-	for (const auto& line : *linesResult) {
-		auto aliasResult = parseAliasLine(line);
-		if (aliasResult) {
-			aliases_.push_back(*aliasResult);
-		}
-		else {
-			// Игнорируем неверные строки (можно залогировать)
-			std::cerr << "Skipping invalid alias line: " << line << '\n';
-		}
-	}
-	return {};
-}
-
-// Сохранение
-std::expected<void, std::error_code> AliasManager::save() noexcept {
-	if (filePath_.empty()) {
-		return std::unexpected(std::make_error_code(std::errc::no_such_file_or_directory));
-	}
-
-	// Переоткрываем файл в режиме перезаписи
-	std::string pathUtf8 = WStringToUTF8(filePath_);
-	auto reopenResult = writer::openOverwrite(ctx_, pathUtf8);
-	if (!reopenResult) {
-		return std::unexpected(reopenResult.error());
-	}
-
-	// Пишем каждую строку
-	for (const auto& alias : aliases_) {
-		std::string line = serializeAlias(alias);
-		auto writeResult = writer::write(ctx_, line, nullptr); // без форматтера
-		if (!writeResult) {
-			return std::unexpected(writeResult.error());
-		}
-	}
-	return {};
-}
-
-// Добавление/обновление
-std::expected<void, std::error_code> AliasManager::addOrUpdate(const Alias& alias) noexcept {
-	if (!isValidAlias(alias)) {
-		return std::unexpected(std::make_error_code(std::errc::invalid_argument));
-	}
-
-	for (auto& a : aliases_) {
-		if (a.name == alias.name) {
-			a.path = alias.path;
-			return save();
-		}
-	}
-	aliases_.push_back(alias);
-	return save();
-}
-
-// Удаление
-std::expected<void, std::error_code> AliasManager::remove(const std::wstring& name) noexcept {
-	auto it = std::find_if(aliases_.begin(), aliases_.end(),
-		[&name](const Alias& a) { return a.name == name; });
-	if (it == aliases_.end()) {
-		return std::unexpected(std::make_error_code(std::errc::no_such_file_or_directory));
-	}
-	aliases_.erase(it);
-	return save();
-}
-
-// Поиск
-std::expected<const Alias*, std::error_code> AliasManager::find(const std::wstring& name) const noexcept {
-	for (const auto& a : aliases_) {
-		if (a.name == name) {
-			return &a;
-		}
-	}
-	return std::unexpected(std::make_error_code(std::errc::no_such_file_or_directory));
-}
-
-// Очистка
-std::expected<void, std::error_code> AliasManager::clear() noexcept {
-	aliases_.clear();
-	return save();
-}
-
-// src/models/alias.h
-#pragma once
-
-#include <string>
-#include <expected>
-#include <system_error>
-
-struct Alias {
-    std::wstring name;
-    std::wstring path;
-};
-
-// Вспомогательные чистые функции
-bool isValidAlias(const Alias& a) noexcept;
-std::expected<Alias, std::error_code> parseAliasLine(const std::string& line) noexcept;
-std::string serializeAlias(const Alias& a) noexcept;
-
-// src/models/alias_manager.h
-#pragma once
-
-#include "alias.h"
-#include "../utils/writer.h"   
-#include <vector>
-#include <string>
-#include <expected>
-#include <system_error>
-
-class AliasManager {
-public:
-    static AliasManager& Instance();
-
-    // Инициализация: путь к файлу и контекст для записи
-    std::expected<void, std::error_code> init(const std::wstring& filePath) noexcept;
-
-    // Загрузка из файла
-    std::expected<void, std::error_code> load() noexcept;
-
-    // Сохранение в файл
-    std::expected<void, std::error_code> save() noexcept;
-
-    // Добавление/обновление
-    std::expected<void, std::error_code> addOrUpdate(const Alias& alias) noexcept;
-
-    // Удаление по имени
-    std::expected<void, std::error_code> remove(const std::wstring& name) noexcept;
-
-    // Поиск по имени (возвращает указатель или ошибку)
-    std::expected<const Alias*, std::error_code> find(const std::wstring& name) const noexcept;
-
-    // Получение всех алиасов
-    const std::vector<Alias>& getAll() const noexcept { return aliases_; }
-
-    // Очистка всех
-    std::expected<void, std::error_code> clear() noexcept;
-
-    AliasManager(const AliasManager&) = delete;
-    AliasManager& operator=(const AliasManager&) = delete;
-
-private:
-    AliasManager() = default;
-
-    std::vector<Alias> aliases_;
-    std::wstring filePath_;
-    writer::Context ctx_;   // контекст для записи
-
-    // Вспомогательная функция для получения пути по умолчанию
-    static std::wstring getDefaultFilePath() noexcept;
-};
-
-// src/farwrapper/far2l_wrappers.h
-#pragma once
-
-#include <farplug-wide.h>
-#include <expected>
-#include <system_error>
 #include <string>
 #include <vector>
 
-namespace far2l
-{
-    // Используем точную сигнатуру из SDK
-    using ControlFunc = FARAPICONTROL;   // int (*)(HANDLE, int, int, LONG_PTR)
-    using MessageFunc = FARAPIMESSAGE;   // при необходимости тоже можно заменить
+#include "../../src/models/alias.h"
+#include "../../src/models/alias_manager.h"
+#include "../../src/utils/utilites.h"   // для initLocale
 
-    std::expected<void, std::error_code> control(HANDLE hPanel, int command, int param1, void *param2,
-                                                 ControlFunc controlFunc) noexcept;
+namespace fs = std::filesystem;
 
-    std::expected<void, std::error_code> message(int moduleNumber, int flags, const std::wstring &title,
-                                                 const std::vector<std::wstring> &items, int icon,
-                                                 MessageFunc msgFunc) noexcept;
+// ============================================================================
+// Фикстура для тестов функций alias (устанавливает локаль)
+// ============================================================================
+class AliasFunctionsTest : public ::testing::Test {
+protected:
+    static void SetUpTestSuite() {
+        auto result = initLocale();
+        ASSERT_TRUE(result.has_value()) << "Failed to set locale";
+    }
+};
 
-    bool isValidHandle(HANDLE h) noexcept;
+// ============================================================================
+// Тесты для чистых функций (alias.cpp)
+// ============================================================================
+
+TEST_F(AliasFunctionsTest, IsValidAlias) {
+    Alias a1{L"home", L"/home/user"};
+    EXPECT_TRUE(isValidAlias(a1));
+
+    Alias a2{L"", L"/path"};
+    EXPECT_FALSE(isValidAlias(a2));
+
+    Alias a3{L"name", L""};
+    EXPECT_FALSE(isValidAlias(a3));
+
+    Alias a4{L"", L""};
+    EXPECT_FALSE(isValidAlias(a4));
 }
 
-// src/farwrapper/far2l_wrappers.cpp
-#include "far2l_wrappers.h"
-#include <iostream>
+TEST_F(AliasFunctionsTest, ParseValidLine) {
+    std::string line = "home=/home/user";
+    auto result = parseAliasLine(line);
+    ASSERT_TRUE(result.has_value());
+    EXPECT_EQ(result->name, L"home");
+    EXPECT_EQ(result->path, L"/home/user");
 
-namespace far2l
-{
+    line = "  work  =  /work/project  ";
+    result = parseAliasLine(line);
+    ASSERT_TRUE(result.has_value());
+    EXPECT_EQ(result->name, L"work");
+    EXPECT_EQ(result->path, L"/work/project");
 
-    bool isValidHandle(HANDLE h) noexcept
-    {
-        return h != nullptr && h != INVALID_HANDLE_VALUE;
+    line = "привет=/путь/к/папке";
+    result = parseAliasLine(line);
+    ASSERT_TRUE(result.has_value());
+    EXPECT_EQ(result->name, L"привет");
+    EXPECT_EQ(result->path, L"/путь/к/папке");
+}
+
+TEST_F(AliasFunctionsTest, ParseInvalidLines) {
+    auto result = parseAliasLine("");
+    EXPECT_FALSE(result.has_value());
+    EXPECT_EQ(result.error(), std::make_error_code(std::errc::invalid_argument));
+
+    result = parseAliasLine("# comment");
+    EXPECT_FALSE(result.has_value());
+
+    result = parseAliasLine("invalid");
+    EXPECT_FALSE(result.has_value());
+
+    result = parseAliasLine("=/path");
+    EXPECT_FALSE(result.has_value());
+
+    result = parseAliasLine("name=");
+    EXPECT_FALSE(result.has_value());
+
+    result = parseAliasLine("=");
+    EXPECT_FALSE(result.has_value());
+}
+
+TEST_F(AliasFunctionsTest, SerializeAlias) {
+    Alias a{L"home", L"/home/user"};
+    std::string serialized = serializeAlias(a);
+    EXPECT_EQ(serialized, "home=/home/user");
+
+    Alias b{L"work", L"/work/project"};
+    EXPECT_EQ(serializeAlias(b), "work=/work/project");
+
+    Alias c{L"привет", L"/путь/к/папке"};
+    EXPECT_EQ(serializeAlias(c), "привет=/путь/к/папке");
+}
+
+// ============================================================================
+// Тесты для AliasManager (используем временные файлы)
+// ============================================================================
+
+class AliasManagerTest : public ::testing::Test {
+protected:
+    void SetUp() override {
+        testDir = fs::temp_directory_path() / "alias_manager_test";
+        fs::create_directories(testDir);
+        testFile = testDir / "aliases";
+
+        auto& mgr = AliasManager::Instance();
+        auto initResult = mgr.init(testFile.wstring());
+        ASSERT_TRUE(initResult.has_value()) << "Init failed: " << initResult.error().message();
+        mgr.clear();
     }
 
-     std::expected<void, std::error_code> control(HANDLE hPanel, int command, int param1, void *param2,
-                                                 ControlFunc controlFunc) noexcept
-    {
-        if (!controlFunc)
-            return std::unexpected(std::make_error_code(std::errc::function_not_supported));
-        if (!isValidHandle(hPanel))
-            return std::unexpected(std::make_error_code(std::errc::bad_file_descriptor));
-
-        int result = 0;
-        try
-        {
-            // Приведение void* -> LONG_PTR, как того требует FAR API
-            result = controlFunc(hPanel, command, param1, reinterpret_cast<LONG_PTR>(param2));
-        }
-        catch (...)
-        {
-            return std::unexpected(std::make_error_code(std::errc::io_error));
-        }
-
-        if (result != 0)
-            return std::unexpected(std::make_error_code(std::errc::operation_not_permitted));
-        return {};
-    }
-	
-    std::expected<void, std::error_code> message(int moduleNumber, int flags, const std::wstring &title,
-                                                 const std::vector<std::wstring> &items, int icon,
-                                                 MessageFunc msgFunc) noexcept
-    {
-        if (!msgFunc)
-        {
-            return std::unexpected(std::make_error_code(std::errc::function_not_supported));
-        }
-
-        // Подготовка массива указателей
-        std::vector<const wchar_t *> itemPtrs;
-        itemPtrs.reserve(items.size());
-        for (const auto &s : items)
-        {
-            itemPtrs.push_back(s.c_str());
-        }
-
-        try
-        {
-            msgFunc(moduleNumber, flags, title.c_str(), itemPtrs.data(), static_cast<int>(itemPtrs.size()), icon);
-        }
-        catch (...)
-        {
-            return std::unexpected(std::make_error_code(std::errc::io_error));
-        }
-        return {};
+    void TearDown() override {
+        fs::remove_all(testDir);
     }
 
-} // namespace far2l
+    void writeLines(const std::vector<std::string>& lines) {
+        std::ofstream file(testFile);
+        for (const auto& line : lines) {
+            file << line << '\n';
+        }
+        file.close();
+    }
+
+    std::vector<std::string> readLines() {
+        std::vector<std::string> lines;
+        std::ifstream file(testFile);
+        std::string line;
+        while (std::getline(file, line)) {
+            lines.push_back(line);
+        }
+        return lines;
+    }
+
+    fs::path testDir;
+    fs::path testFile;
+};
+
+TEST_F(AliasManagerTest, LoadEmptyFileWhenFileDoesNotExist) {
+    auto& mgr = AliasManager::Instance();
+    auto result = mgr.load();
+    ASSERT_TRUE(result.has_value());
+    EXPECT_TRUE(mgr.getAll().empty());
+}
+
+TEST_F(AliasManagerTest, LoadValidLines) {
+    writeLines({"home=/home/user", "work=/work/project"});
+
+    auto& mgr = AliasManager::Instance();
+    auto result = mgr.load();
+    ASSERT_TRUE(result.has_value());
+
+    const auto& aliases = mgr.getAll();
+    ASSERT_EQ(aliases.size(), 2);
+    EXPECT_EQ(aliases[0].name, L"home");
+    EXPECT_EQ(aliases[0].path, L"/home/user");
+    EXPECT_EQ(aliases[1].name, L"work");
+    EXPECT_EQ(aliases[1].path, L"/work/project");
+}
+
+TEST_F(AliasManagerTest, LoadIgnoresInvalidLines) {
+    writeLines({
+        "home=/home/user",
+        "# comment",
+        "invalid_line",
+        "work=/work/project",
+        "=",
+        "name=",
+        "=/path"
+    });
+
+    auto& mgr = AliasManager::Instance();
+    auto result = mgr.load();
+    ASSERT_TRUE(result.has_value());
+
+    const auto& aliases = mgr.getAll();
+    ASSERT_EQ(aliases.size(), 2);
+    EXPECT_EQ(aliases[0].name, L"home");
+    EXPECT_EQ(aliases[1].name, L"work");
+}
+
+TEST_F(AliasManagerTest, SaveWritesAliasesToFile) {
+    auto& mgr = AliasManager::Instance();
+    Alias a1{L"home", L"/home/user"};
+    Alias a2{L"work", L"/work/project"};
+    mgr.addOrUpdate(a1);
+    mgr.addOrUpdate(a2);
+
+    auto saveResult = mgr.save();
+    ASSERT_TRUE(saveResult.has_value());
+
+    auto lines = readLines();
+    ASSERT_EQ(lines.size(), 2);
+    EXPECT_EQ(lines[0], "home=/home/user");
+    EXPECT_EQ(lines[1], "work=/work/project");
+}
+
+TEST_F(AliasManagerTest, AddOrUpdateAddsNewAlias) {
+    auto& mgr = AliasManager::Instance();
+    Alias a{L"test", L"/test/path"};
+    auto result = mgr.addOrUpdate(a);
+    ASSERT_TRUE(result.has_value());
+
+    const auto& aliases = mgr.getAll();
+    ASSERT_EQ(aliases.size(), 1);
+    EXPECT_EQ(aliases[0].name, L"test");
+    EXPECT_EQ(aliases[0].path, L"/test/path");
+}
+
+TEST_F(AliasManagerTest, AddOrUpdateUpdatesExistingAlias) {
+    auto& mgr = AliasManager::Instance();
+    Alias a1{L"test", L"/old/path"};
+    mgr.addOrUpdate(a1);
+    Alias a2{L"test", L"/new/path"};
+    auto result = mgr.addOrUpdate(a2);
+    ASSERT_TRUE(result.has_value());
+
+    const auto& aliases = mgr.getAll();
+    ASSERT_EQ(aliases.size(), 1);
+    EXPECT_EQ(aliases[0].name, L"test");
+    EXPECT_EQ(aliases[0].path, L"/new/path");
+}
+
+TEST_F(AliasManagerTest, AddOrUpdateWithInvalidAliasReturnsError) {
+    auto& mgr = AliasManager::Instance();
+    Alias invalid{L"", L"/path"};
+    auto result = mgr.addOrUpdate(invalid);
+    EXPECT_FALSE(result.has_value());
+    EXPECT_EQ(result.error(), std::make_error_code(std::errc::invalid_argument));
+}
+
+TEST_F(AliasManagerTest, RemoveExistingAlias) {
+    auto& mgr = AliasManager::Instance();
+    Alias a{L"test", L"/test/path"};
+    mgr.addOrUpdate(a);
+    auto result = mgr.remove(L"test");
+    ASSERT_TRUE(result.has_value());
+    EXPECT_TRUE(mgr.getAll().empty());
+}
+
+TEST_F(AliasManagerTest, RemoveNonExistingAliasReturnsError) {
+    auto& mgr = AliasManager::Instance();
+    auto result = mgr.remove(L"nonexistent");
+    EXPECT_FALSE(result.has_value());
+    EXPECT_EQ(result.error(), std::make_error_code(std::errc::no_such_file_or_directory));
+}
+
+TEST_F(AliasManagerTest, FindExistingAlias) {
+    auto& mgr = AliasManager::Instance();
+    Alias a{L"test", L"/test/path"};
+    mgr.addOrUpdate(a);
+    auto result = mgr.find(L"test");
+    ASSERT_TRUE(result.has_value());
+    EXPECT_EQ((*result)->name, L"test");
+    EXPECT_EQ((*result)->path, L"/test/path");
+}
+
+TEST_F(AliasManagerTest, FindNonExistingAliasReturnsError) {
+    auto& mgr = AliasManager::Instance();
+    auto result = mgr.find(L"nonexistent");
+    EXPECT_FALSE(result.has_value());
+    EXPECT_EQ(result.error(), std::make_error_code(std::errc::no_such_file_or_directory));
+}
+
+TEST_F(AliasManagerTest, ClearRemovesAllAliasesAndSaves) {
+    auto& mgr = AliasManager::Instance();
+    Alias a1{L"home", L"/home/user"};
+    Alias a2{L"work", L"/work/project"};
+    mgr.addOrUpdate(a1);
+    mgr.addOrUpdate(a2);
+    auto result = mgr.clear();
+    ASSERT_TRUE(result.has_value());
+    EXPECT_TRUE(mgr.getAll().empty());
+
+    auto lines = readLines();
+    EXPECT_TRUE(lines.empty());
+}
+
+TEST_F(AliasManagerTest, InitWithNonExistingDirectoryReturnsError) {
+    auto& mgr = AliasManager::Instance();
+    std::wstring badPath = L"/nonexistent/path/aliases";
+    auto result = mgr.init(badPath);
+    EXPECT_FALSE(result.has_value());
+}
+
+TEST_F(AliasManagerTest, LoadEmptyFileGivesEmptyList) {
+    std::ofstream file(testFile); 
+    file.close();
+
+    auto& mgr = AliasManager::Instance();
+    auto result = mgr.load();
+    ASSERT_TRUE(result.has_value());
+    EXPECT_TRUE(mgr.getAll().empty());
+}
 
 // tests/CMakeLists.txt
-# Раннее включение модуля GoogleTest (ОБЯЗАТЕЛЬНО ДО всего остального)
+# Подключаем GoogleTest
 include(GoogleTest)
 
-# Вспомогательная функция для добавления тестового исполняемого файла
+# Функция для создания тестового исполняемого файла
 function(add_unit_test TEST_NAME)
     set(SOURCES ${ARGN})
     add_executable(${TEST_NAME} ${SOURCES})
@@ -864,17 +306,194 @@ function(add_unit_test TEST_NAME)
     gtest_discover_tests(${TEST_NAME})
 endfunction()
 
-# Библиотека с тестируемыми модулями
+# Общая библиотека с тестируемыми модулями (добавляйте сюда новые файлы по мере необходимости)
 add_library(utils_lib STATIC
     ../src/utils/utilites.cpp
     ../src/utils/writer.cpp
+    ../src/models/alias.cpp
+    ../src/models/alias_manager.cpp
+    ../src/farwrapper/far2l_wrappers.cpp
 )
-target_include_directories(utils_lib PUBLIC ../src/utils)
+
+target_include_directories(utils_lib PUBLIC 
+    ../src/utils
+    ../src/farwrapper
+    /home/dima/far2l-dev/src/far2l/far2sdk/
+)
+target_compile_definitions(utils_lib PRIVATE
+    WINPORT_DIRECT
+    UNICODE
+    FAR_DONT_USE_INTERNALS
+)
 target_compile_features(utils_lib PUBLIC cxx_std_23)
 
-# Регистрация тестов (теперь gtest_discover_tests уже известна)
-add_unit_test(test_utf_conversions utils/test_utf_conversions.cpp)
-add_unit_test(test_writer utils/test_writer.cpp)
+# ---- АВТОМАТИЧЕСКОЕ ОБНАРУЖЕНИЕ ТЕСТОВ ----
+# Находим все .cpp файлы в подпапках tests/ (рекурсивно)
+file(GLOB_RECURSE TEST_SOURCES 
+    "*.cpp"
+)
+
+# Исключаем возможные служебные файлы (если понадобится)
+# list(REMOVE_ITEM TEST_SOURCES "some_excluded_file.cpp")
+
+set(TEST_TARGETS "")
+
+foreach(TEST_FILE ${TEST_SOURCES})
+    get_filename_component(TEST_NAME ${TEST_FILE} NAME_WE)  # имя без расширения
+    add_unit_test(${TEST_NAME} ${TEST_FILE})
+    list(APPEND TEST_TARGETS ${TEST_NAME})
+endforeach()
+
+# Цель для сборки всех тестов (используется в tasks.json)
+add_custom_target(tests DEPENDS ${TEST_TARGETS})
+
+// tests/far/test_far2l_wrappers.cpp
+#include <gtest/gtest.h>
+#include "far2l_wrappers.h"
+
+// Заглушки
+int mockControlSuccess(HANDLE h, int cmd, int p1, LONG_PTR p2) { return 0; }
+int mockControlFailure(HANDLE h, int cmd, int p1, LONG_PTR p2) { return 1; }
+
+TEST(Far2lControlTest, CallsControlFuncWithCorrectArguments) {
+    HANDLE h = (HANDLE)0x1234;
+    int cmd = 42, p1 = 100;
+    void* p2 = (void*)0x5678;
+    
+    static HANDLE saved_h = nullptr;
+    static int saved_cmd = 0, saved_p1 = 0;
+    static LONG_PTR saved_p2 = 0;
+    
+    auto mock = [](HANDLE h, int cmd, int p1, LONG_PTR p2) -> int {
+        saved_h = h; saved_cmd = cmd; saved_p1 = p1; saved_p2 = p2;
+        return 0;
+    };
+    
+    auto result = far2l::control(h, cmd, p1, p2, mock);
+    ASSERT_TRUE(result.has_value());
+    EXPECT_EQ(saved_h, h);
+    EXPECT_EQ(saved_cmd, cmd);
+    EXPECT_EQ(saved_p1, p1);
+    EXPECT_EQ(saved_p2, (LONG_PTR)p2);
+}
+
+TEST(Far2lControlTest, ReturnsErrorOnNullControlFunc) {
+    auto result = far2l::control(nullptr, 0, 0, nullptr, nullptr);
+    EXPECT_FALSE(result.has_value());
+    EXPECT_EQ(result.error(), std::make_error_code(std::errc::function_not_supported));
+}
+
+TEST(Far2lControlTest, ReturnsErrorOnInvalidHandle) {
+    auto result = far2l::control(INVALID_HANDLE_VALUE, 0, 0, nullptr, mockControlSuccess);
+    EXPECT_FALSE(result.has_value());
+    EXPECT_EQ(result.error(), std::make_error_code(std::errc::bad_file_descriptor));
+}
+
+TEST(Far2lControlTest, ReturnsErrorWhenControlFuncFails) {
+    auto result = far2l::control((HANDLE)0x1, 0, 0, nullptr, mockControlFailure);
+    EXPECT_FALSE(result.has_value());
+    EXPECT_EQ(result.error(), std::make_error_code(std::errc::operation_not_permitted));
+}
+
+// tests/utils/test_utilites.cpp
+#include <gtest/gtest.h>
+#include "utilites.h"
+
+TEST(TrimTest, StringEmpty)
+{
+    std::string s = "";
+    EXPECT_EQ(trim(s), "");
+    std::wstring ws = L"";
+    EXPECT_EQ(trim(ws), L"");
+}
+
+TEST(TrimTest, StringOnlySpaces)
+{
+    std::string s = "   ";
+    EXPECT_EQ(trim(s), "");
+    std::wstring ws = L"\t\n\r   ";
+    EXPECT_EQ(trim(ws), L"");
+}
+
+TEST(TrimTest, StringNoSpaces)
+{
+    std::string s = "hello";
+    EXPECT_EQ(trim(s), "hello");
+    std::wstring ws = L"world";
+    EXPECT_EQ(trim(ws), L"world");
+}
+
+TEST(TrimTest, StringSpacesAround)
+{
+    std::string s = "  hello  ";
+    EXPECT_EQ(trim(s), "hello");
+    std::wstring ws = L"\t\nhello\r\n"; 
+    EXPECT_EQ(trim(ws), L"hello");
+}
+
+TEST(TrimTest, StringWithInternalSpaces)
+{
+    std::string s = "  hello world  ";
+    EXPECT_EQ(trim(s), "hello world");
+    std::wstring ws = L"\thello\tworld\n";
+    EXPECT_EQ(trim(ws), L"hello\tworld");
+}
+
+// tests/utils/test_utf_conversions.cpp
+#include <gtest/gtest.h>
+#include "utilites.h" // путь: src/utils/utilites.h
+#include <clocale>
+
+// Фикстура для установки локали, т.к. функции используют mbstowcs/wcstombs
+class UtfConversionTest : public ::testing::Test
+{
+protected:
+    void SetUp() override
+    {
+        // Устанавливаем UTF-8 локаль, чтобы конверсии работали корректно
+        std::setlocale(LC_ALL, "en_US.UTF-8");
+    }
+};
+
+TEST_F(UtfConversionTest, EmptyString)
+{
+    EXPECT_TRUE(UTF8ToWString("").empty());
+    EXPECT_TRUE(WStringToUTF8(L"").empty());
+}
+
+TEST_F(UtfConversionTest, AsciiRoundtrip)
+{
+    std::string ascii = "Hello, World!";
+    std::wstring wide = UTF8ToWString(ascii);
+    EXPECT_EQ(wide, L"Hello, World!");
+    EXPECT_EQ(WStringToUTF8(wide), ascii);
+}
+
+TEST_F(UtfConversionTest, RussianRoundtrip)
+{
+    std::string utf8 = "Привет, мир!";
+    std::wstring wide = UTF8ToWString(utf8);
+    // Ожидаем, что широкая строка будет содержать те же символы
+    EXPECT_EQ(wide.size(), 12); // 12 символов (включая пробел и запятую)
+    std::string back = WStringToUTF8(wide);
+    EXPECT_EQ(back, utf8);
+} 
+
+TEST_F(UtfConversionTest, SpecialSymbols)
+{
+    std::string utf8 = "© € → λ";
+    std::wstring wide = UTF8ToWString(utf8);
+    EXPECT_EQ(wide.size(), 7); // 4 символа + 3 пробела
+    EXPECT_EQ(WStringToUTF8(wide), utf8);
+}
+
+TEST_F(UtfConversionTest, InvalidUtf8ReturnsEmpty)
+{
+    // Некорректная последовательность (0xFF) приводит к ошибке преобразования
+    std::wstring res = UTF8ToWString("\xFF\xFF");
+    // Ожидается пустая строка, так как mbstowcs вернёт -1
+    EXPECT_TRUE(res.empty());
+}
 
 // tests/utils/test_writer.cpp
 #include <gtest/gtest.h>
@@ -978,55 +597,6 @@ TEST_F(WriterTest, WriteToClosedContext) {
     auto writeRes = writer::write(ctx, "should fail");
     ASSERT_FALSE(writeRes.has_value());
     EXPECT_EQ(writeRes.error(), std::make_error_code(std::errc::bad_file_descriptor));
-}
-
-// tests/utils/test_utf_conversions.cpp
-#include <gtest/gtest.h>
-#include "utilites.h"   // путь: src/utils/utilites.h
-#include <clocale>
-
-// Фикстура для установки локали, т.к. функции используют mbstowcs/wcstombs
-class UtfConversionTest : public ::testing::Test {
-protected:
-    void SetUp() override {
-        // Устанавливаем UTF-8 локаль, чтобы конверсии работали корректно
-        std::setlocale(LC_ALL, "en_US.UTF-8");
-    }
-};
-
-TEST_F(UtfConversionTest, EmptyString) {
-    EXPECT_TRUE(UTF8ToWString("").empty());
-    EXPECT_TRUE(WStringToUTF8(L"").empty());
-}
-
-TEST_F(UtfConversionTest, AsciiRoundtrip) {
-    std::string ascii = "Hello, World!";
-    std::wstring wide = UTF8ToWString(ascii);
-    EXPECT_EQ(wide, L"Hello, World!");
-    EXPECT_EQ(WStringToUTF8(wide), ascii);
-}
-
-TEST_F(UtfConversionTest, RussianRoundtrip) {
-    std::string utf8 = "Привет, мир!";
-    std::wstring wide = UTF8ToWString(utf8);
-    // Ожидаем, что широкая строка будет содержать те же символы
-    EXPECT_EQ(wide.size(), 12); // 12 символов (включая пробел и запятую)
-    std::string back = WStringToUTF8(wide);
-    EXPECT_EQ(back, utf8);
-}
-
-TEST_F(UtfConversionTest, SpecialSymbols) {
-    std::string utf8 = "© € → λ";
-    std::wstring wide = UTF8ToWString(utf8);
-    EXPECT_EQ(wide.size(), 7); // 4 символа + 3 пробела
-    EXPECT_EQ(WStringToUTF8(wide), utf8);
-}
-
-TEST_F(UtfConversionTest, InvalidUtf8ReturnsEmpty) {
-    // Некорректная последовательность (0xFF) приводит к ошибке преобразования
-    std::wstring res = UTF8ToWString("\xFF\xFF");
-    // Ожидается пустая строка, так как mbstowcs вернёт -1
-    EXPECT_TRUE(res.empty());
 }
 
 // alias_cd.cpp
@@ -1475,4 +1045,63 @@ SHAREDSYMBOL void WINAPI EXP_NAME(GetPluginInfo)(struct PluginInfo* info) {
     info->PluginConfigStringsNumber = 0;
     info->SysID = 0;
 }
+
+// CMakeLists.txt
+cmake_minimum_required(VERSION 3.31)
+project(alias_cd)
+
+set(CMAKE_CXX_STANDARD 23)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+
+set(SOURCES
+    src/farwrapper/far2l_wrappers.cpp
+    src/models/alias.cpp
+    src/models/alias_manager.cpp
+    src/utils/writer.cpp
+    src/utils/utilites.cpp
+    alias_cd.cpp
+)
+add_library(alias_cd MODULE ${SOURCES})
+
+target_compile_definitions(alias_cd
+	PRIVATE
+		-DWINPORT_DIRECT
+		-DUNICODE
+		-DFAR_DONT_USE_INTERNALS
+)
+
+target_include_directories(alias_cd
+	PRIVATE /home/dima/far2l-dev/src/far2l/far2sdk/
+)
+
+get_target_property(INC_DIRS alias_cd INCLUDE_DIRECTORIES)
+
+set_target_properties(alias_cd
+	PROPERTIES
+		PREFIX ""
+		SUFFIX ".far-plug-wide"
+)
+
+if(CMAKE_BUILD_TYPE STREQUAL "Release")
+    add_custom_command(TARGET alias_cd POST_BUILD
+        COMMAND ${CMAKE_STRIP} --strip-unneeded $<TARGET_FILE:alias_cd>
+    )
+endif()
+
+option(BUILD_TESTING "Build unit tests" ON)
+
+if(BUILD_TESTING)
+    enable_testing()
+
+    include(FetchContent)
+    FetchContent_Declare(
+        googletest
+        GIT_REPOSITORY https://github.com/google/googletest.git
+        GIT_TAG        v1.14.0   # актуальная версия на момент написания
+    )
+    FetchContent_MakeAvailable(googletest)
+
+    add_subdirectory(tests)
+endif()
 

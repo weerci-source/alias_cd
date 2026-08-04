@@ -1,7 +1,7 @@
-# Раннее включение модуля GoogleTest (ОБЯЗАТЕЛЬНО ДО всего остального)
+# Подключаем GoogleTest
 include(GoogleTest)
 
-# Вспомогательная функция для добавления тестового исполняемого файла
+# Функция для создания тестового исполняемого файла
 function(add_unit_test TEST_NAME)
     set(SOURCES ${ARGN})
     add_executable(${TEST_NAME} ${SOURCES})
@@ -10,18 +10,44 @@ function(add_unit_test TEST_NAME)
     gtest_discover_tests(${TEST_NAME})
 endfunction()
 
-# Библиотека с тестируемыми модулями (теперь включает alias и alias_manager)
+# Общая библиотека с тестируемыми модулями (добавляйте сюда новые файлы по мере необходимости)
 add_library(utils_lib STATIC
     ../src/utils/utilites.cpp
     ../src/utils/writer.cpp
     ../src/models/alias.cpp
     ../src/models/alias_manager.cpp
+    ../src/farwrapper/far2l_wrappers.cpp
+    ../alias_cd.cpp
 )
-target_include_directories(utils_lib PUBLIC ../src/utils)
+
+target_include_directories(utils_lib PUBLIC 
+    ../src/utils
+    ../src/farwrapper
+    /home/dima/far2l-dev/src/far2l/far2sdk/
+)
+target_compile_definitions(utils_lib PRIVATE
+    WINPORT_DIRECT
+    UNICODE
+    FAR_DONT_USE_INTERNALS
+)
 target_compile_features(utils_lib PUBLIC cxx_std_23)
 
-# Регистрация тестов
-add_unit_test(test_utf_conversions utils/test_utf_conversions.cpp)
-add_unit_test(test_writer utils/test_writer.cpp)
-add_unit_test(test_alias_manager models/test_alias_manager.cpp)
-add_unit_test(test_utilites utils/test_utilites.cpp)
+# ---- АВТОМАТИЧЕСКОЕ ОБНАРУЖЕНИЕ ТЕСТОВ ----
+# Находим все .cpp файлы в подпапках tests/ (рекурсивно)
+file(GLOB_RECURSE TEST_SOURCES 
+    "*.cpp"
+)
+
+# Исключаем возможные служебные файлы (если понадобится)
+# list(REMOVE_ITEM TEST_SOURCES "some_excluded_file.cpp")
+
+set(TEST_TARGETS "")
+
+foreach(TEST_FILE ${TEST_SOURCES})
+    get_filename_component(TEST_NAME ${TEST_FILE} NAME_WE)  # имя без расширения
+    add_unit_test(${TEST_NAME} ${TEST_FILE})
+    list(APPEND TEST_TARGETS ${TEST_NAME})
+endforeach()
+
+# Цель для сборки всех тестов (используется в tasks.json)
+add_custom_target(tests DEPENDS ${TEST_TARGETS})

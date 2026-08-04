@@ -2,8 +2,11 @@
     "files.exclude": {
         "build": true,
         "build-release": true,
+        "build-test": true,
         ".gitignore": true,
         "**/.git": true,
     },
-    "cmake.autoBuild": "onSave"
+    "cmake.autoBuild": "onSave",
+    "testMate.cpp.test.executables": "${workspaceFolder}/build-test/tests/*",
+    "testMate.cpp.test.framework": "GoogleTest"
 }

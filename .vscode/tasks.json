@@ -64,8 +64,8 @@
                 "$gcc"
             ]
         },
-        // ================================================================
-        // ЗАДАЧИ ДЛЯ ТЕСТОВ (используют отдельную папку build-test)
+                // ================================================================
+        // ЗАДАЧИ ДЛЯ ТЕСТОВ
         // ================================================================
         {
             "label": "Test: Configure",
@@ -85,7 +85,7 @@
         {
             "label": "Test: Build",
             "type": "shell",
-            "command": "cmake --build build-test --target test_utf_conversions test_writer test_alias_manager test_utilites",
+            "command": "cmake --build build-test --target tests",
             "group": "build",
             "dependsOn": [
                 "Test: Configure"
@@ -97,7 +97,7 @@
         {
             "label": "Test: Build and Run",
             "type": "shell",
-            "command": "cmake --build build-test --target test_utf_conversions test_writer test_alias_manager test_utilites && ctest --test-dir build-test --output-on-failure",
+            "command": "cmake --build build-test --target tests && ctest --test-dir build-test --output-on-failure",
             "group": "test",
             "dependsOn": [
                 "Test: Configure"
@@ -107,9 +107,6 @@
             ],
             "detail": "Build all tests and run them"
         },
-        // ================================================================
-        // Запуск уже собранных тестов (без пересборки)
-        // ================================================================
         {
             "label": "Run All Tests",
             "type": "shell",
