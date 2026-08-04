@@ -40,7 +40,7 @@ if(CMAKE_BUILD_TYPE STREQUAL "Release")
     )
 endif()
 
-option(BUILD_TESTING "Build unit tests" OFF)
+option(BUILD_TESTING "Build unit tests" ON)
 
 if(BUILD_TESTING)
     enable_testing()
