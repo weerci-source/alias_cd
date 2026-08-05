@@ -9,7 +9,7 @@ namespace far2l
         return h != nullptr && h != INVALID_HANDLE_VALUE;
     }
 
-     std::expected<void, std::error_code> control(HANDLE hPanel, int command, int param1, void *param2,
+    std::expected<void, std::error_code> control(HANDLE hPanel, int command, int param1, void *param2,
                                                  ControlFunc controlFunc) noexcept
     {
         if (!controlFunc)
@@ -32,7 +32,7 @@ namespace far2l
             return std::unexpected(std::make_error_code(std::errc::operation_not_permitted));
         return {};
     }
-	
+
     std::expected<void, std::error_code> message(int moduleNumber, int flags, const std::wstring &title,
                                                  const std::vector<std::wstring> &items, int icon,
                                                  MessageFunc msgFunc) noexcept
@@ -42,7 +42,6 @@ namespace far2l
             return std::unexpected(std::make_error_code(std::errc::function_not_supported));
         }
 
-        // Подготовка массива указателей
         std::vector<const wchar_t *> itemPtrs;
         itemPtrs.reserve(items.size());
         for (const auto &s : items)
@@ -52,7 +51,12 @@ namespace far2l
 
         try
         {
-            msgFunc(moduleNumber, flags, title.c_str(), itemPtrs.data(), static_cast<int>(itemPtrs.size()), icon);
+            intptr_t result = msgFunc(moduleNumber, flags, title.c_str(), itemPtrs.data(),
+                                      static_cast<int>(itemPtrs.size()), icon);
+            if (result != 0)
+            {
+                return std::unexpected(std::make_error_code(std::errc::io_error));
+            }
         }
         catch (...)
         {
