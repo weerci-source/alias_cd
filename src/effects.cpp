@@ -5,10 +5,6 @@
 
 namespace effects {
 
-    // Определение глобальных указателей (по умолчанию nullptr)
-    std::expected<void, std::error_code> (*g_control_impl)(const PluginContext&, HANDLE, int, int, void*) = nullptr;
-    std::expected<void, std::error_code> (*g_message_impl)(const PluginContext&, const std::wstring&, const std::vector<std::wstring>&, int, int) = nullptr;
-    
     void log(const std::string& msg) {
         static std::mutex logMutex;
         std::lock_guard<std::mutex> lock(logMutex);
@@ -17,6 +13,9 @@ namespace effects {
 
     std::expected<void, std::error_code> control(const PluginContext& ctx,
                                                  HANDLE h, int cmd, int p1, void* p2) noexcept {
+        if (g_control_impl) {
+            return g_control_impl(ctx, h, cmd, p1, p2);
+        }
         return far2l::control(h, cmd, p1, p2, ctx.Info.Control);
     }
 
@@ -24,6 +23,9 @@ namespace effects {
                                                  const std::wstring& title,
                                                  const std::vector<std::wstring>& items,
                                                  int flags, int icon) noexcept {
+        if (g_message_impl) {
+            return g_message_impl(ctx, title, items, flags, icon);
+        }
         return far2l::message(ctx.Info.ModuleNumber, flags, title, items, icon, ctx.Info.Message);
     }
 

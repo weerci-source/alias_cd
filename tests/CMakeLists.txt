@@ -25,6 +25,7 @@ add_library(utils_lib STATIC
 target_include_directories(utils_lib PUBLIC
         ../src/utils
         ../src/farwrapper
+        ../src
         /home/dima/far2l-dev/src/far2l/far2sdk/
 )
 target_compile_definitions(utils_lib PRIVATE
