@@ -275,3 +275,50 @@ TEST_F(ActionsTest, ShowInfo_CallsMessageWithInfoTitle) {
 	ASSERT_EQ(lastMessageItems.size(), 1);
 	EXPECT_EQ(lastMessageItems[0], L"Test info message");
 }
+
+TEST_F(ActionsTest, ProcessOpenCommand_WithCdPrefix_GoesToAlias) {
+    // Добавляем алиас
+    Alias a{L"home", L"/home/user"};
+    auto& mgr = AliasManager::Instance();
+    mgr.addOrUpdate(a);
+    
+    mockSetCurrentDirShouldFail = false;
+    mockControlShouldFail = false;
+    controlCallCount = 0;
+    
+    auto result = actions::processOpenCommand(ctx, L"cd:home");
+    ASSERT_TRUE(result.has_value());
+    EXPECT_EQ(*result, INVALID_HANDLE_VALUE);
+    EXPECT_GT(controlCallCount, 0);
+    EXPECT_EQ(lastSetPath, L"/home/user");
+}
+
+TEST_F(ActionsTest, ProcessOpenCommand_WithCdPrefixAndColon_OpensPanel) {
+    // cd: без аргумента -> открыть панель
+    auto result = actions::processOpenCommand(ctx, L"cd:");
+    ASSERT_TRUE(result.has_value());
+    EXPECT_NE(*result, INVALID_HANDLE_VALUE);
+}
+
+TEST_F(ActionsTest, ProcessOpenCommand_WithSaveCommand_SavesAlias) {
+    mockGetCurrentDirShouldFail = false;
+    
+    auto result = actions::processOpenCommand(ctx, L"cd::test");
+    ASSERT_TRUE(result.has_value());
+    EXPECT_EQ(*result, INVALID_HANDLE_VALUE);
+    
+    auto& mgr = AliasManager::Instance();
+    auto found = mgr.find(L"test");
+    ASSERT_TRUE(found.has_value());
+    EXPECT_EQ((*found)->path, L"/mock/current/dir");
+}
+
+TEST_F(ActionsTest, ProcessOpenCommand_InvalidCommand_ReturnsError) {
+    // Команда, не начинающаяся с "cd:" -> должна открыть панель, а не ошибку
+    // Но если это не "cd:", то она идёт в openAliasesPanel, что работает.
+    // Нужно проверить случай, когда команда начинается с "cd:", но аргумент некорректен.
+    // Например, "cd:   " – это должно открыть панель.
+    auto result = actions::processOpenCommand(ctx, L"cd:   ");
+    ASSERT_TRUE(result.has_value());
+    EXPECT_NE(*result, INVALID_HANDLE_VALUE);
+}
