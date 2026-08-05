@@ -1,15 +1,15 @@
 #include <gtest/gtest.h>
-#include "../../alias_cd.cpp" 
+#include "../../src/pure.h"
 
 TEST(PureFunctionsTest, NormalizeCommand) {
     EXPECT_EQ(pure::normalizeCommand(L"Cd:Home"), L"cd:home");
-    EXPECT_EQ(pure::normalizeCommand(L"  CD:  "), L"cd:"); // удаляются только внешние пробелы
-    EXPECT_EQ(pure::normalizeCommand(L"cd:   test  "), L"cd:   test"); // пробелы внутри сохраняются
+    EXPECT_EQ(pure::normalizeCommand(L"  CD:  "), L"cd:");
+    EXPECT_EQ(pure::normalizeCommand(L"cd:   test  "), L"cd:   test");
 }
 
 TEST(PureFunctionsTest, IsCdCommand) {
     EXPECT_TRUE(pure::isCdCommand(L"cd:home"));
-    EXPECT_TRUE(pure::isCdCommand(L"cd:")); // используем нижний регистр
+    EXPECT_TRUE(pure::isCdCommand(L"cd:"));
     EXPECT_FALSE(pure::isCdCommand(L"home"));
 }
 

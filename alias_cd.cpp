@@ -16,6 +16,7 @@
 #include "src/plugin_context.h"
 #include "src/effects.h"   
 #include "src/actions.h"
+#include "src/pure.h"
 
 
 // ============================================================
@@ -24,45 +25,6 @@
 struct PanelData {
     std::vector<Alias> aliases;
 };
-
-static std::optional<PluginContext> g_ctx;   // глобальный контекст (инициализируется один раз)
-
-// ============================================================
-//  Вспомогательные чистые функции (без побочных эффектов)
-// ============================================================
-namespace pure {
-
-    bool isInitialized() noexcept {
-        return g_ctx.has_value();
-    }
-
-    const PluginContext& context() noexcept {
-        return *g_ctx;
-    }
-
-    std::wstring normalizeCommand(std::wstring cmd) {
-        std::transform(cmd.begin(), cmd.end(), cmd.begin(), ::towlower);
-        return trim(cmd);
-    }
-
-    bool isCdCommand(const std::wstring& cmd) noexcept {
-        return cmd.find(L"cd:") == 0;
-    }
-
-    std::wstring extractArgument(const std::wstring& cmd) noexcept {
-        if (cmd.size() < 3) return L"";
-        return trim(cmd.substr(3));
-    }
-
-    enum class CommandType { Panel, Save, Goto, Unknown };
-    CommandType classifyCommand(const std::wstring& arg) noexcept {
-        if (arg.empty()) return CommandType::Panel;
-        if (arg[0] == L':') return CommandType::Save;
-        return CommandType::Goto;
-    }
-
-} // namespace pure
-
 
 // ============================================================
 //  Экспортируемые функции плагина (точки входа FAR)
@@ -105,7 +67,7 @@ SHAREDSYMBOL void WINAPI EXP_NAME(SetStartupInfo)(const struct PluginStartupInfo
         return;
     }
 
-    g_ctx.emplace(std::move(ctx));
+    pure::setContext(std::move(ctx));
     effects::log("Plugin initialized successfully (functional style)");
 }
 

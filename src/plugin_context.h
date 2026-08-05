@@ -1,8 +1,7 @@
 #pragma once
 
-// ============================================================
-//  Контекст плагина – неизменяемое состояние после инициализации
-// ============================================================
+#include <farplug-wide.h>  
+
 struct PluginContext {
     PluginStartupInfo Info;
     FarStandardFunctions* FSF;
