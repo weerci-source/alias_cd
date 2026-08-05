@@ -64,7 +64,7 @@
                 "$gcc"
             ]
         },
-                // ================================================================
+        // ================================================================
         // ЗАДАЧИ ДЛЯ ТЕСТОВ
         // ================================================================
         {
@@ -122,6 +122,31 @@
             ],
             "problemMatcher": [],
             "detail": "Run all tests via CTest (build-test)"
+        },
+        {
+            "label": "Coverage: Build, Run Tests and Generate Report",
+            "type": "shell",
+            "command": "bash",
+            "args": [
+                "-c",
+                "rm -rf build-coverage && mkdir build-coverage && mkdir build-coverage/coverage_report && cd build-coverage && cmake .. -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_FLAGS=\"--coverage\" -DCMAKE_EXE_LINKER_FLAGS=\"--coverage\" && cmake --build . --target tests && ctest --output-on-failure && gcovr --root .. --html --html-details -o coverage_report/index.html --exclude '.*/tests/.*' --exclude '.*/build-coverage/_deps/.*' && echo 'Coverage report generated in build-coverage/coverage_report/index.html'"
+            ],
+            "group": "test",
+            "problemMatcher": [],
+            "detail": "Build with coverage, run tests and generate HTML report using gcovr"
+        },
+        {
+            "label": "Coverage: Build, Run and Open Report",
+            "type": "shell",
+            "command": "firefox",
+            "args": [
+                "build-coverage/coverage_report/index.html"
+            ],
+            "group": "test",
+            "dependsOn": [
+                "Coverage: Build, Run Tests and Generate Report"
+            ],
+            "problemMatcher": []
         }
     ]
 }

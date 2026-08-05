@@ -3,6 +3,7 @@
         "build": true,
         "build-release": true,
         "build-test": true,
+        "build-coverage": true,
         ".gitignore": true,
         "**/.git": true,
     },

@@ -2,6 +2,7 @@
 build/
 build-release/
 build-test/
+build-coverage/
 cmake-build-*/
 
 # Объектные файлы
