@@ -5,6 +5,10 @@
 
 namespace effects {
 
+    // Определение глобальных указателей (по умолчанию nullptr)
+    std::expected<void, std::error_code> (*g_control_impl)(const PluginContext&, HANDLE, int, int, void*) = nullptr;
+    std::expected<void, std::error_code> (*g_message_impl)(const PluginContext&, const std::wstring&, const std::vector<std::wstring>&, int, int) = nullptr;
+    
     void log(const std::string& msg) {
         static std::mutex logMutex;
         std::lock_guard<std::mutex> lock(logMutex);

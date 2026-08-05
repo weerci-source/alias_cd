@@ -10,6 +10,10 @@
 
 namespace effects {
 
+    // Указатели для переопределения в тестах (по умолчанию nullptr)
+    extern std::expected<void, std::error_code> (*g_control_impl)(const PluginContext&, HANDLE, int, int, void*);
+    extern std::expected<void, std::error_code> (*g_message_impl)(const PluginContext&, const std::wstring&, const std::vector<std::wstring>&, int, int);
+
     void log(const std::string& msg);
 
     std::expected<void, std::error_code> control(const PluginContext& ctx,

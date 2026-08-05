@@ -5,6 +5,9 @@
 #include <expected>
 #include <filesystem>
 
+std::expected<std::wstring, std::error_code> (*g_getCurrentDirW_impl)() noexcept = nullptr;
+std::expected<void, std::error_code> (*g_setCurrentDirW_impl)(const std::wstring &) noexcept = nullptr;
+
 std::string currentTime()
 {
     auto now = std::chrono::system_clock::now();
@@ -54,6 +57,11 @@ std::string WStringToUTF8(const std::wstring &wstr)
 
 std::expected<std::wstring, std::error_code> getCurrentDirW() noexcept
 {
+    if (g_getCurrentDirW_impl)
+    {
+        return g_getCurrentDirW_impl();
+    }
+
     std::filesystem::path current;
     try
     {
@@ -73,6 +81,11 @@ std::expected<std::wstring, std::error_code> getCurrentDirW() noexcept
 
 std::expected<void, std::error_code> setCurrentDirW(const std::wstring &path) noexcept
 {
+    if (g_setCurrentDirW_impl)
+    {
+        return g_setCurrentDirW_impl(path);
+    }
+
     try
     {
         std::filesystem::current_path(path);
