@@ -13,21 +13,16 @@
 #include <mutex>
 #include <optional>
 #include <functional>
+#include "src/plugin_context.h"
+#include "src/effects.h"   
+#include "src/actions.h"
+
 
 // ============================================================
 //  Структура данных панели (необходима для GetFindData)
 // ============================================================
 struct PanelData {
     std::vector<Alias> aliases;
-};
-
-// ============================================================
-//  Контекст плагина – неизменяемое состояние после инициализации
-// ============================================================
-struct PluginContext {
-    PluginStartupInfo Info;
-    FarStandardFunctions* FSF;
-    // AliasManager используется как синглтон, поэтому не храним его здесь
 };
 
 static std::optional<PluginContext> g_ctx;   // глобальный контекст (инициализируется один раз)
@@ -68,126 +63,6 @@ namespace pure {
 
 } // namespace pure
 
-// ============================================================
-//  Функции с побочными эффектами (обёртки над FAR API, файловая система)
-// ============================================================
-namespace effects {
-
-    void log(const std::string& msg) {
-        static std::mutex logMutex;
-        std::lock_guard<std::mutex> lock(logMutex);
-        std::ofstream("/tmp/alias_cd.log", std::ios::app) << msg << std::endl;
-    }
-
-    std::expected<void, std::error_code> control(const PluginContext& ctx,
-                                                 HANDLE h, int cmd, int p1, void* p2) noexcept {
-        return far2l::control(h, cmd, p1, p2, ctx.Info.Control);
-    }
-
-    std::expected<void, std::error_code> message(const PluginContext& ctx,
-                                                 const std::wstring& title,
-                                                 const std::vector<std::wstring>& items,
-                                                 int flags = 0, int icon = 0) noexcept {
-        return far2l::message(ctx.Info.ModuleNumber, flags, title, items, icon, ctx.Info.Message);
-    }
-
-    void showError(const PluginContext& ctx, const std::wstring& text) {
-        static_cast<void>(message(ctx, L"Alias CD Error", { text }));
-    }
-
-    void showInfo(const PluginContext& ctx, const std::wstring& text) {
-        static_cast<void>(message(ctx, L"Alias CD", { text }));
-    }
-
-    std::expected<void, std::error_code> updateActivePanel(const PluginContext& ctx) noexcept {
-        return control(ctx, PANEL_ACTIVE, FCTL_SETPANELDIR, 0, nullptr)
-            .and_then([&]() { return control(ctx, PANEL_ACTIVE, FCTL_UPDATEPANEL, 0, nullptr); })
-            .and_then([&]() { return control(ctx, PANEL_ACTIVE, FCTL_REDRAWPANEL, 0, nullptr); });
-    }
-
-    std::expected<void, std::error_code> closePlugin(const PluginContext& ctx, HANDLE hPlugin) noexcept {
-        return control(ctx, hPlugin, FCTL_CLOSEPLUGIN, 0, nullptr);
-    }
-
-} // namespace effects
-
-// ============================================================
-//  Основные действия (используют контекст и синглтон AliasManager)
-// ============================================================
-namespace actions {
-
-    using Result = std::expected<HANDLE, std::error_code>;
-
-    Result openAliasesPanel(const PluginContext& ctx) noexcept {
-        effects::log("openAliasesPanel");
-        auto data = std::make_unique<PanelData>();
-        if (!data)
-            return std::unexpected(std::make_error_code(std::errc::not_enough_memory));
-        data->aliases = AliasManager::Instance().getAll();
-        effects::log("Panel opened, aliases count: " + std::to_string(data->aliases.size()));
-        return data.release();
-    }
-
-    Result saveAlias(const PluginContext& ctx, std::wstring aliasName) noexcept {
-        aliasName = trim(aliasName);
-        if (aliasName.empty())
-            return std::unexpected(std::make_error_code(std::errc::invalid_argument));
-
-        auto currentDir = getCurrentDirW();
-        if (!currentDir)
-            return std::unexpected(currentDir.error());
-
-        Alias newAlias{ aliasName, *currentDir };
-        auto saveResult = AliasManager::Instance().addOrUpdate(newAlias);
-        if (!saveResult)
-            return std::unexpected(saveResult.error());
-
-        effects::showInfo(ctx, L"Alias \"" + aliasName + L"\" saved as \"" + *currentDir + L"\"");
-        return INVALID_HANDLE_VALUE;
-    }
-
-    Result gotoAlias(const PluginContext& ctx, std::wstring aliasName) noexcept {
-        aliasName = trim(aliasName);
-        if (aliasName.empty())
-            return std::unexpected(std::make_error_code(std::errc::invalid_argument));
-
-        auto found = AliasManager::Instance().find(aliasName);
-        if (!found)
-            return std::unexpected(found.error());
-
-        auto setDirResult = setCurrentDirW((*found)->path);
-        if (!setDirResult)
-            return std::unexpected(setDirResult.error());
-
-        auto updateResult = effects::updateActivePanel(ctx);
-        if (!updateResult)
-            return std::unexpected(updateResult.error());
-
-        effects::showInfo(ctx, L"Changed to \"" + (*found)->path + L"\"");
-        return INVALID_HANDLE_VALUE;
-    }
-
-    Result processOpenCommand(const PluginContext& ctx, const std::wstring& cmdLine) noexcept {
-        using namespace pure;
-
-        std::wstring cmd = normalizeCommand(cmdLine);
-        if (!isCdCommand(cmd))
-            return openAliasesPanel(ctx);
-
-        std::wstring arg = extractArgument(cmd);
-        switch (classifyCommand(arg)) {
-            case CommandType::Panel:
-                return openAliasesPanel(ctx);
-            case CommandType::Save:
-                return saveAlias(ctx, arg.substr(1));
-            case CommandType::Goto:
-                return gotoAlias(ctx, arg);
-            default:
-                return std::unexpected(std::make_error_code(std::errc::invalid_argument));
-        }
-    }
-
-} // namespace actions
 
 // ============================================================
 //  Экспортируемые функции плагина (точки входа FAR)
