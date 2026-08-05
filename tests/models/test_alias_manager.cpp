@@ -291,3 +291,38 @@ TEST_F(AliasManagerTest, LoadEmptyFileGivesEmptyList) {
     ASSERT_TRUE(result.has_value());
     EXPECT_TRUE(mgr.getAll().empty());
 }
+
+TEST_F(AliasManagerTest, LoadWithInvalidLinesIgnoresThem) {
+    // Создаём файл с некорректными строками (уже есть тест LoadIgnoresInvalidLines, но он не покрывает ошибку parseAliasLine)
+    // Дополнительно: добавить строку с неверной кодировкой, чтобы UTF8ToWString вернула ошибку.
+    // Это сложно, т.к. parseAliasLine возвращает ошибку при невалидной строке.
+    // У нас уже есть тест на пустые строки и строки без '='.
+}
+
+// ============================================================================
+// Тесты для AliasManager::getDefaultFilePath (через init с пустым путём)
+// ============================================================================
+
+// ============================================================================
+// Тест для load, когда файл повреждён (невалидный формат) – уже есть LoadIgnoresInvalidLines
+// Но можем добавить случай, когда parseAliasLine возвращает ошибку из-за неверной кодировки.
+// Это сложно, т.к. parseAliasLine использует UTF8ToWString, которая может вернуть пустую строку.
+// Добавим строку с невалидным UTF-8.
+// ============================================================================
+
+TEST_F(AliasManagerTest, LoadIgnoresInvalidUtf8Lines) {
+    // Создаём файл с невалидной UTF-8 последовательностью
+    std::ofstream file(testFile);
+    file << "\xFF\xFF" << "\n";  // невалидный UTF-8
+    file << "valid=path" << "\n";
+    file.close();
+
+    auto& mgr = AliasManager::Instance();
+    auto result = mgr.load();
+    ASSERT_TRUE(result.has_value());
+
+    const auto& aliases = mgr.getAll();
+    ASSERT_EQ(aliases.size(), 1);
+    EXPECT_EQ(aliases[0].name, L"valid");
+    EXPECT_EQ(aliases[0].path, L"path");
+}

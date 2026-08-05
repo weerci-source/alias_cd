@@ -248,3 +248,30 @@ TEST_F(ActionsTest, GotoAlias_SetCurrentDirFails_ReturnsError) {
 	EXPECT_FALSE(result.has_value());
 	EXPECT_EQ(result.error(), std::make_error_code(std::errc::no_such_file_or_directory));
 }
+
+TEST_F(ActionsTest, ShowError_CallsMessageWithErrorTitle) {
+	// Сбрасываем счётчики
+	messageCallCount = 0;
+	lastMessageTitle = L"";
+	lastMessageItems.clear();
+
+	effects::showError(ctx, L"Test error message");
+
+	EXPECT_GT(messageCallCount, 0);
+	EXPECT_EQ(lastMessageTitle, L"Alias CD Error");
+	ASSERT_EQ(lastMessageItems.size(), 1);
+	EXPECT_EQ(lastMessageItems[0], L"Test error message");
+}
+
+TEST_F(ActionsTest, ShowInfo_CallsMessageWithInfoTitle) {
+	messageCallCount = 0;
+	lastMessageTitle = L"";
+	lastMessageItems.clear();
+
+	effects::showInfo(ctx, L"Test info message");
+
+	EXPECT_GT(messageCallCount, 0);
+	EXPECT_EQ(lastMessageTitle, L"Alias CD");
+	ASSERT_EQ(lastMessageItems.size(), 1);
+	EXPECT_EQ(lastMessageItems[0], L"Test info message");
+}

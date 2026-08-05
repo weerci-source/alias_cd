@@ -151,3 +151,24 @@ TEST(Far2lMessageTest, ReturnsErrorWhenMessageFuncFails) {
     // После исправления far2l::message (добавлена проверка возврата) ошибка должна быть io_error
     EXPECT_EQ(result.error(), std::make_error_code(std::errc::io_error));
 }
+
+// Мок, который бросает исключение
+int throwingControlFunc(HANDLE, int, int, LONG_PTR) {
+    throw std::runtime_error("test exception");
+}
+
+intptr_t throwingMessageFunc(INT_PTR, DWORD, const wchar_t*, const wchar_t* const*, int, int) {
+    throw std::runtime_error("test exception");
+}
+
+TEST(Far2lControlTest, HandlesExceptionFromControlFunc) {
+    auto result = far2l::control((HANDLE)0x1, 0, 0, nullptr, throwingControlFunc);
+    EXPECT_FALSE(result.has_value());
+    EXPECT_EQ(result.error(), std::make_error_code(std::errc::io_error));
+}
+
+TEST(Far2lMessageTest, HandlesExceptionFromMessageFunc) {
+    auto result = far2l::message(0, 0, L"", {}, 0, throwingMessageFunc);
+    EXPECT_FALSE(result.has_value());
+    EXPECT_EQ(result.error(), std::make_error_code(std::errc::io_error));
+}
