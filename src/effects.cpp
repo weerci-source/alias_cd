@@ -1,49 +1,48 @@
 #include "effects.h"
-#include "farwrapper/far2l_wrappers.h"
 #include <fstream>
 #include <mutex>
 
-namespace effects {
+void Effects::log(const std::string &msg) const
+{
+    static std::mutex logMutex;
+    std::lock_guard<std::mutex> lock(logMutex);
+    std::ofstream("/tmp/alias_cd.log", std::ios::app) << msg << std::endl;
+}
 
-    void log(const std::string& msg) {
-        static std::mutex logMutex;
-        std::lock_guard<std::mutex> lock(logMutex);
-        std::ofstream("/tmp/alias_cd.log", std::ios::app) << msg << std::endl;
-    }
+std::expected<void, std::error_code> Effects::control(const PluginContext &ctx,
+                                                      HANDLE h, int cmd, int p1, void *p2) const noexcept
+{
+    return farApi_.control(h, cmd, p1, p2);
+}
 
-    std::expected<void, std::error_code> control(const PluginContext& ctx,
-                                                 HANDLE h, int cmd, int p1, void* p2) noexcept {
-        if (g_control_impl) {
-            return g_control_impl(ctx, h, cmd, p1, p2);
-        }
-        return far2l::control(h, cmd, p1, p2, ctx.Info.Control);
-    }
+std::expected<void, std::error_code> Effects::message(const PluginContext &ctx,
+                                                      const std::wstring &title,
+                                                      const std::vector<std::wstring> &items,
+                                                      int flags, int icon) const noexcept
+{
+    return farApi_.message(title, items, flags, icon);
+}
 
-    std::expected<void, std::error_code> message(const PluginContext& ctx,
-                                                 const std::wstring& title,
-                                                 const std::vector<std::wstring>& items,
-                                                 int flags, int icon) noexcept {
-        if (g_message_impl) {
-            return g_message_impl(ctx, title, items, flags, icon);
-        }
-        return far2l::message(ctx.Info.ModuleNumber, flags, title, items, icon, ctx.Info.Message);
-    }
+void Effects::showError(const PluginContext &ctx, const std::wstring &text) const
+{
+    static_cast<void>(message(ctx, L"Alias CD Error", {text}));
+}
 
-    void showError(const PluginContext& ctx, const std::wstring& text) {
-        static_cast<void>(message(ctx, L"Alias CD Error", { text }));
-    }
+void Effects::showInfo(const PluginContext &ctx, const std::wstring &text) const
+{
+    static_cast<void>(message(ctx, L"Alias CD", {text}));
+}
 
-    void showInfo(const PluginContext& ctx, const std::wstring& text) {
-        static_cast<void>(message(ctx, L"Alias CD", { text }));
-    }
+std::expected<void, std::error_code> Effects::updateActivePanel(const PluginContext &ctx) const noexcept
+{
+    return control(ctx, PANEL_ACTIVE, FCTL_SETPANELDIR, 0, nullptr)
+        .and_then([&]()
+                  { return control(ctx, PANEL_ACTIVE, FCTL_UPDATEPANEL, 0, nullptr); })
+        .and_then([&]()
+                  { return control(ctx, PANEL_ACTIVE, FCTL_REDRAWPANEL, 0, nullptr); });
+}
 
-    std::expected<void, std::error_code> updateActivePanel(const PluginContext& ctx) noexcept {
-        return control(ctx, PANEL_ACTIVE, FCTL_SETPANELDIR, 0, nullptr)
-            .and_then([&]() { return control(ctx, PANEL_ACTIVE, FCTL_UPDATEPANEL, 0, nullptr); })
-            .and_then([&]() { return control(ctx, PANEL_ACTIVE, FCTL_REDRAWPANEL, 0, nullptr); });
-    }
-
-    std::expected<void, std::error_code> closePlugin(const PluginContext& ctx, HANDLE hPlugin) noexcept {
-        return control(ctx, hPlugin, FCTL_CLOSEPLUGIN, 0, nullptr);
-    }
+std::expected<void, std::error_code> Effects::closePlugin(const PluginContext &ctx, HANDLE hPlugin) const noexcept
+{
+    return control(ctx, hPlugin, FCTL_CLOSEPLUGIN, 0, nullptr);
 }

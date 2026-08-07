@@ -1,324 +1,323 @@
 #include <gtest/gtest.h>
-#include "../../src/actions.h"
-#include "../../src/effects.h"
-#include "../../src/utils/utilites.h"
-#include "../../src/models/alias_manager.h"
-#include "../../src/plugin_context.h"
+#include <gmock/gmock.h>
+#include "actions.h"
+#include "effects.h"
+#include "interfaces/IFarApi.h"
+#include "interfaces/IFileSystem.h"
+#include "interfaces/IAliasStorage.h"
+#include "models/alias.h"
+#include <memory>
 #include <vector>
-#include <string>
-#include <filesystem>
 
-namespace fs = std::filesystem;
+using ::testing::Return;
+using ::testing::_;
+using ::testing::NiceMock;
+using ::testing::DoAll;
+using ::testing::SaveArg;
+using ::testing::ReturnRef;
+using ::testing::Eq;
+
+// ============================================================================
+// Моки интерфейсов
+// ============================================================================
+
+class MockFarApi : public IFarApi {
+public:
+    MOCK_METHOD((std::expected<void, std::error_code>), control, (HANDLE, int, int, void*), (noexcept, override));
+    MOCK_METHOD((std::expected<void, std::error_code>), message, (const std::wstring&, const std::vector<std::wstring>&, int, int), (noexcept, override));
+};
+
+class MockFileSystem : public IFileSystem {
+public:
+    MOCK_METHOD((std::expected<std::wstring, std::error_code>), getCurrentDir, (), (noexcept, override));
+    MOCK_METHOD((std::expected<void, std::error_code>), setCurrentDir, (const std::wstring&), (noexcept, override));
+};
+
+class MockAliasStorage : public IAliasStorage {
+public:
+    MOCK_METHOD((std::expected<void, std::error_code>), init, (const std::wstring&), (noexcept, override));
+    MOCK_METHOD((std::expected<void, std::error_code>), load, (), (noexcept, override));
+    MOCK_METHOD((std::expected<void, std::error_code>), save, (), (noexcept, override));
+    MOCK_METHOD((std::expected<void, std::error_code>), addOrUpdate, (const Alias&), (noexcept, override));
+    MOCK_METHOD((std::expected<void, std::error_code>), remove, (const std::wstring&), (noexcept, override));
+    MOCK_METHOD((std::expected<const Alias*, std::error_code>), find, (const std::wstring&), (const, noexcept, override));
+    MOCK_METHOD(const std::vector<Alias>&, getAll, (), (const, noexcept, override));
+    MOCK_METHOD((std::expected<void, std::error_code>), clear, (), (noexcept, override));
+};
 
 class ActionsTest : public ::testing::Test {
 protected:
-	void SetUp() override {
-		// Создаём временную папку и файл для AliasManager
-		testDir = fs::temp_directory_path() / "actions_test";
-		fs::create_directories(testDir);
-		testFile = testDir / "aliases";
-
-		auto& mgr = AliasManager::Instance();
-		auto initResult = mgr.init(testFile.wstring());
-		ASSERT_TRUE(initResult.has_value()) << "Init failed: " << initResult.error().message();
-		mgr.clear();
-
-		// Сбрасываем статические переменные
-		controlCallCount = 0;
-		messageCallCount = 0;
-		lastControlHandle = nullptr;
-		lastControlCmd = 0;
-		lastControlP1 = 0;
-		lastControlP2 = nullptr;
-		mockControlShouldFail = false;
-		lastMessageTitle = L"";
-		lastMessageItems.clear();
-		lastMessageFlags = 0;
-		lastMessageIcon = 0;
-		mockMessageShouldFail = false;
-		mockGetCurrentDirShouldFail = false;
-		mockSetCurrentDirShouldFail = false;
-		lastSetPath = L"";
-
-		// Устанавливаем моки
-		effects::g_control_impl = mockControl;
-		effects::g_message_impl = mockMessage;
-		g_getCurrentDirW_impl = mockGetCurrentDirW;
-		g_setCurrentDirW_impl = mockSetCurrentDirW;
-
-		// Проверяем, что моки установлены
-		ASSERT_NE(effects::g_control_impl, nullptr);
-		ASSERT_NE(effects::g_message_impl, nullptr);
-
-		// Создаём контекст (заглушка)
-		ctx.Info.ModuleNumber = 0;
-		ctx.Info.Control = nullptr;
-		ctx.Info.Message = nullptr;
-		ctx.FSF = nullptr;
-
-		// ПРОВЕРКА: вызываем effects::message напрямую, чтобы убедиться, что мок работает
-		auto testMsg = effects::message(ctx, L"Test", { L"test" }, 0, 0);
-		ASSERT_TRUE(testMsg.has_value()) << "effects::message failed";
-		ASSERT_GT(messageCallCount, 0) << "mockMessage was not called by effects::message";
-		messageCallCount = 0; // сбрасываем после проверки
-	}
-
-	void TearDown() override {
-		// Сброс моков
-		effects::g_control_impl = nullptr;
-		effects::g_message_impl = nullptr;
-		g_getCurrentDirW_impl = nullptr;
-		g_setCurrentDirW_impl = nullptr;
-
-		// Удаляем временную папку
-		fs::remove_all(testDir);
-	}
-
-	// Моки с счётчиками
-	static std::expected<void, std::error_code> mockControl(const PluginContext& ctx, HANDLE h, int cmd, int p1, void* p2) {
-		controlCallCount++;
-		lastControlHandle = h;
-		lastControlCmd = cmd;
-		lastControlP1 = p1;
-		lastControlP2 = p2;
-		if (mockControlShouldFail) {
-			return std::unexpected(std::make_error_code(std::errc::io_error));
-		}
-		return {};
-	}
-
-	static std::expected<void, std::error_code> mockMessage(const PluginContext& ctx, const std::wstring& title,
-		const std::vector<std::wstring>& items,
-		int flags, int icon) {
-		messageCallCount++;
-		lastMessageTitle = title;
-		lastMessageItems = items;
-		lastMessageFlags = flags;
-		lastMessageIcon = icon;
-		if (mockMessageShouldFail) {
-			return std::unexpected(std::make_error_code(std::errc::io_error));
-		}
-		return {};
-	}
-
-	static std::expected<std::wstring, std::error_code> mockGetCurrentDirW() noexcept {
-		if (mockGetCurrentDirShouldFail) {
-			return std::unexpected(std::make_error_code(std::errc::no_such_file_or_directory));
-		}
-		return L"/mock/current/dir";
-	}
-
-	static std::expected<void, std::error_code> mockSetCurrentDirW(const std::wstring& path) noexcept {
-		lastSetPath = path;
-		if (mockSetCurrentDirShouldFail) {
-			return std::unexpected(std::make_error_code(std::errc::no_such_file_or_directory));
-		}
-		return {};
-	}
-
-	// Статические переменные
-	static int controlCallCount;
-	static int messageCallCount;
-	static HANDLE lastControlHandle;
-	static int lastControlCmd;
-	static int lastControlP1;
-	static void* lastControlP2;
-	static bool mockControlShouldFail;
-
-	static std::wstring lastMessageTitle;
-	static std::vector<std::wstring> lastMessageItems;
-	static int lastMessageFlags;
-	static int lastMessageIcon;
-	static bool mockMessageShouldFail;
-
-	static bool mockGetCurrentDirShouldFail;
-	static bool mockSetCurrentDirShouldFail;
-	static std::wstring lastSetPath;
-
-	PluginContext ctx;
-	fs::path testDir;
-	fs::path testFile;
+    PluginContext ctx;
 };
-
-// Инициализация статических переменных
-int ActionsTest::controlCallCount = 0;
-int ActionsTest::messageCallCount = 0;
-HANDLE ActionsTest::lastControlHandle = nullptr;
-int ActionsTest::lastControlCmd = 0;
-int ActionsTest::lastControlP1 = 0;
-void* ActionsTest::lastControlP2 = nullptr;
-bool ActionsTest::mockControlShouldFail = false;
-
-std::wstring ActionsTest::lastMessageTitle = L"";
-std::vector<std::wstring> ActionsTest::lastMessageItems = {};
-int ActionsTest::lastMessageFlags = 0;
-int ActionsTest::lastMessageIcon = 0;
-bool ActionsTest::mockMessageShouldFail = false;
-
-bool ActionsTest::mockGetCurrentDirShouldFail = false;
-bool ActionsTest::mockSetCurrentDirShouldFail = false;
-std::wstring ActionsTest::lastSetPath = L"";
 
 // ============================================================================
 // Тесты
 // ============================================================================
 
 TEST_F(ActionsTest, OpenAliasesPanel_ReturnsHandleWithAliases) {
-	Alias a1{ L"home", L"/home/user" };
-	Alias a2{ L"work", L"/work/project" };
-	auto& mgr = AliasManager::Instance();
-	mgr.addOrUpdate(a1);
-	mgr.addOrUpdate(a2);
+    NiceMock<MockFarApi> mockFar;
+    NiceMock<MockFileSystem> mockFs;
+    NiceMock<MockAliasStorage> mockStorage;
 
-	auto result = actions::openAliasesPanel(ctx);
-	ASSERT_TRUE(result.has_value());
-	HANDLE h = *result;
-	EXPECT_NE(h, INVALID_HANDLE_VALUE);
-	EXPECT_NE(h, nullptr);
+    std::vector<Alias> aliases = {
+        {L"home", L"/home/user"},
+        {L"work", L"/work/project"}
+    };
+    EXPECT_CALL(mockStorage, getAll())
+        .WillOnce(ReturnRef(aliases));
+
+    Effects effects(mockFar);
+    Actions actions(mockStorage, mockFs, effects);
+
+    auto result = actions.openAliasesPanel(ctx);
+    ASSERT_TRUE(result.has_value());
+    HANDLE h = *result;
+    EXPECT_NE(h, INVALID_HANDLE_VALUE);
+    EXPECT_NE(h, nullptr);
 }
 
 TEST_F(ActionsTest, SaveAlias_SavesAliasAndShowsInfo) {
-	mockGetCurrentDirShouldFail = false;
+    NiceMock<MockFarApi> mockFar;
+    NiceMock<MockFileSystem> mockFs;
+    NiceMock<MockAliasStorage> mockStorage;
 
-	auto result = actions::saveAlias(ctx, L"test_alias");
-	ASSERT_TRUE(result.has_value());
-	EXPECT_EQ(*result, INVALID_HANDLE_VALUE);
+    EXPECT_CALL(mockFs, getCurrentDir())
+        .WillOnce(Return(std::expected<std::wstring, std::error_code>(L"/mock/current/dir")));
 
-	// Проверяем, что алиас сохранён
-	auto& mgr = AliasManager::Instance();
-	auto found = mgr.find(L"test_alias");
-	ASSERT_TRUE(found.has_value());
-	EXPECT_EQ((*found)->path, L"/mock/current/dir");
+    EXPECT_CALL(mockStorage, addOrUpdate(Eq(Alias{L"test_alias", L"/mock/current/dir"})))
+        .WillOnce(Return(std::expected<void, std::error_code>{}));
 
-	// Проверяем вызовы моков
-	EXPECT_GT(messageCallCount, 0) << "mockMessage was not called";
-	EXPECT_EQ(lastMessageTitle, L"Alias CD");
-	ASSERT_EQ(lastMessageItems.size(), 1);
-	EXPECT_EQ(lastMessageItems[0], L"Alias \"test_alias\" saved as \"/mock/current/dir\"");
+    EXPECT_CALL(mockFar, message(Eq(L"Alias CD"), _, _, _))
+        .WillOnce(Return(std::expected<void, std::error_code>{}));
+
+    Effects effects(mockFar);
+    Actions actions(mockStorage, mockFs, effects);
+
+    auto result = actions.saveAlias(ctx, L"test_alias");
+    ASSERT_TRUE(result.has_value());
+    EXPECT_EQ(*result, INVALID_HANDLE_VALUE);
 }
 
 TEST_F(ActionsTest, SaveAlias_InvalidName_ReturnsError) {
-	auto result = actions::saveAlias(ctx, L"");
-	EXPECT_FALSE(result.has_value());
-	EXPECT_EQ(result.error(), std::make_error_code(std::errc::invalid_argument));
+    NiceMock<MockFarApi> mockFar;
+    NiceMock<MockFileSystem> mockFs;
+    NiceMock<MockAliasStorage> mockStorage;
 
-	result = actions::saveAlias(ctx, L"   ");
-	EXPECT_FALSE(result.has_value());
-	EXPECT_EQ(result.error(), std::make_error_code(std::errc::invalid_argument));
+    Effects effects(mockFar);
+    Actions actions(mockStorage, mockFs, effects);
+
+    auto result = actions.saveAlias(ctx, L"");
+    EXPECT_FALSE(result.has_value());
+    EXPECT_EQ(result.error(), std::make_error_code(std::errc::invalid_argument));
+
+    result = actions.saveAlias(ctx, L"   ");
+    EXPECT_FALSE(result.has_value());
+    EXPECT_EQ(result.error(), std::make_error_code(std::errc::invalid_argument));
 }
 
 TEST_F(ActionsTest, SaveAlias_GetCurrentDirFails_ReturnsError) {
-	mockGetCurrentDirShouldFail = true;
-	auto result = actions::saveAlias(ctx, L"test");
-	EXPECT_FALSE(result.has_value());
-	EXPECT_EQ(result.error(), std::make_error_code(std::errc::no_such_file_or_directory));
+    NiceMock<MockFarApi> mockFar;
+    NiceMock<MockFileSystem> mockFs;
+    NiceMock<MockAliasStorage> mockStorage;
+
+    EXPECT_CALL(mockFs, getCurrentDir())
+        .WillOnce(Return(std::unexpected(std::make_error_code(std::errc::no_such_file_or_directory))));
+
+    Effects effects(mockFar);
+    Actions actions(mockStorage, mockFs, effects);
+
+    auto result = actions.saveAlias(ctx, L"test");
+    EXPECT_FALSE(result.has_value());
+    EXPECT_EQ(result.error(), std::make_error_code(std::errc::no_such_file_or_directory));
 }
 
 TEST_F(ActionsTest, GotoAlias_GoesToExistingAliasAndUpdatesPanel) {
-	Alias a{ L"home", L"/home/user" };
-	auto& mgr = AliasManager::Instance();
-	mgr.addOrUpdate(a);
+    NiceMock<MockFarApi> mockFar;
+    NiceMock<MockFileSystem> mockFs;
+    NiceMock<MockAliasStorage> mockStorage;
 
-	mockSetCurrentDirShouldFail = false;
-	mockControlShouldFail = false;
-	controlCallCount = 0;  // сбрасываем перед вызовом
+    Alias existing{L"home", L"/home/user"};
+    EXPECT_CALL(mockStorage, find(Eq(L"home")))
+        .WillOnce(Return(std::expected<const Alias*, std::error_code>(&existing)));
 
-	auto result = actions::gotoAlias(ctx, L"home");
-	ASSERT_TRUE(result.has_value());
-	EXPECT_EQ(*result, INVALID_HANDLE_VALUE);
+    EXPECT_CALL(mockFs, setCurrentDir(Eq(L"/home/user")))
+        .WillOnce(Return(std::expected<void, std::error_code>{}));
 
-	// Проверяем вызовы моков
-	EXPECT_GT(controlCallCount, 0) << "mockControl was not called";
-	EXPECT_EQ(lastSetPath, L"/home/user");
+    EXPECT_CALL(mockFar, control(_, _, _, _))
+        .Times(3)
+        .WillRepeatedly(Return(std::expected<void, std::error_code>{}));
+
+    EXPECT_CALL(mockFar, message(_, _, _, _))
+        .WillOnce(Return(std::expected<void, std::error_code>{}));
+
+    Effects effects(mockFar);
+    Actions actions(mockStorage, mockFs, effects);
+
+    auto result = actions.gotoAlias(ctx, L"home");
+    ASSERT_TRUE(result.has_value());
+    EXPECT_EQ(*result, INVALID_HANDLE_VALUE);
 }
 
 TEST_F(ActionsTest, GotoAlias_NonExisting_ReturnsError) {
-	auto result = actions::gotoAlias(ctx, L"nonexistent");
-	EXPECT_FALSE(result.has_value());
-	EXPECT_EQ(result.error(), std::make_error_code(std::errc::no_such_file_or_directory));
+    NiceMock<MockFarApi> mockFar;
+    NiceMock<MockFileSystem> mockFs;
+    NiceMock<MockAliasStorage> mockStorage;
+
+    EXPECT_CALL(mockStorage, find(Eq(L"nonexistent")))
+        .WillOnce(Return(std::unexpected(std::make_error_code(std::errc::no_such_file_or_directory))));
+
+    Effects effects(mockFar);
+    Actions actions(mockStorage, mockFs, effects);
+
+    auto result = actions.gotoAlias(ctx, L"nonexistent");
+    EXPECT_FALSE(result.has_value());
+    EXPECT_EQ(result.error(), std::make_error_code(std::errc::no_such_file_or_directory));
 }
 
 TEST_F(ActionsTest, GotoAlias_SetCurrentDirFails_ReturnsError) {
-	Alias a{ L"home", L"/home/user" };
-	auto& mgr = AliasManager::Instance();
-	mgr.addOrUpdate(a);
+    NiceMock<MockFarApi> mockFar;
+    NiceMock<MockFileSystem> mockFs;
+    NiceMock<MockAliasStorage> mockStorage;
 
-	mockSetCurrentDirShouldFail = true;
-	auto result = actions::gotoAlias(ctx, L"home");
-	EXPECT_FALSE(result.has_value());
-	EXPECT_EQ(result.error(), std::make_error_code(std::errc::no_such_file_or_directory));
+    Alias existing{L"home", L"/home/user"};
+    EXPECT_CALL(mockStorage, find(Eq(L"home")))
+        .WillOnce(Return(std::expected<const Alias*, std::error_code>(&existing)));
+
+    EXPECT_CALL(mockFs, setCurrentDir(Eq(L"/home/user")))
+        .WillOnce(Return(std::unexpected(std::make_error_code(std::errc::no_such_file_or_directory))));
+
+    Effects effects(mockFar);
+    Actions actions(mockStorage, mockFs, effects);
+
+    auto result = actions.gotoAlias(ctx, L"home");
+    EXPECT_FALSE(result.has_value());
+    EXPECT_EQ(result.error(), std::make_error_code(std::errc::no_such_file_or_directory));
 }
 
 TEST_F(ActionsTest, ShowError_CallsMessageWithErrorTitle) {
-	// Сбрасываем счётчики
-	messageCallCount = 0;
-	lastMessageTitle = L"";
-	lastMessageItems.clear();
+    NiceMock<MockFarApi> mockFar;
+    NiceMock<MockFileSystem> mockFs;
+    NiceMock<MockAliasStorage> mockStorage;
 
-	effects::showError(ctx, L"Test error message");
+    std::wstring capturedTitle;
+    std::vector<std::wstring> capturedItems;
 
-	EXPECT_GT(messageCallCount, 0);
-	EXPECT_EQ(lastMessageTitle, L"Alias CD Error");
-	ASSERT_EQ(lastMessageItems.size(), 1);
-	EXPECT_EQ(lastMessageItems[0], L"Test error message");
+    EXPECT_CALL(mockFar, message(_, _, _, _))
+        .WillOnce(DoAll(
+            SaveArg<0>(&capturedTitle),
+            SaveArg<1>(&capturedItems),
+            Return(std::expected<void, std::error_code>{})
+        ));
+
+    Effects effects(mockFar);
+    Actions actions(mockStorage, mockFs, effects);
+
+    effects.showError(ctx, L"Test error message");
+
+    EXPECT_EQ(capturedTitle, L"Alias CD Error");
+    ASSERT_EQ(capturedItems.size(), 1);
+    EXPECT_EQ(capturedItems[0], L"Test error message");
 }
 
 TEST_F(ActionsTest, ShowInfo_CallsMessageWithInfoTitle) {
-	messageCallCount = 0;
-	lastMessageTitle = L"";
-	lastMessageItems.clear();
+    NiceMock<MockFarApi> mockFar;
+    NiceMock<MockFileSystem> mockFs;
+    NiceMock<MockAliasStorage> mockStorage;
 
-	effects::showInfo(ctx, L"Test info message");
+    std::wstring capturedTitle;
+    std::vector<std::wstring> capturedItems;
 
-	EXPECT_GT(messageCallCount, 0);
-	EXPECT_EQ(lastMessageTitle, L"Alias CD");
-	ASSERT_EQ(lastMessageItems.size(), 1);
-	EXPECT_EQ(lastMessageItems[0], L"Test info message");
+    EXPECT_CALL(mockFar, message(_, _, _, _))
+        .WillOnce(DoAll(
+            SaveArg<0>(&capturedTitle),
+            SaveArg<1>(&capturedItems),
+            Return(std::expected<void, std::error_code>{})
+        ));
+
+    Effects effects(mockFar);
+    Actions actions(mockStorage, mockFs, effects);
+
+    effects.showInfo(ctx, L"Test info message");
+
+    EXPECT_EQ(capturedTitle, L"Alias CD");
+    ASSERT_EQ(capturedItems.size(), 1);
+    EXPECT_EQ(capturedItems[0], L"Test info message");
 }
 
 TEST_F(ActionsTest, ProcessOpenCommand_WithCdPrefix_GoesToAlias) {
-    // Добавляем алиас
-    Alias a{L"home", L"/home/user"};
-    auto& mgr = AliasManager::Instance();
-    mgr.addOrUpdate(a);
-    
-    mockSetCurrentDirShouldFail = false;
-    mockControlShouldFail = false;
-    controlCallCount = 0;
-    
-    auto result = actions::processOpenCommand(ctx, L"cd:home");
+    NiceMock<MockFarApi> mockFar;
+    NiceMock<MockFileSystem> mockFs;
+    NiceMock<MockAliasStorage> mockStorage;
+
+    Alias existing{L"home", L"/home/user"};
+    EXPECT_CALL(mockStorage, find(Eq(L"home")))
+        .WillOnce(Return(std::expected<const Alias*, std::error_code>(&existing)));
+    EXPECT_CALL(mockFs, setCurrentDir(Eq(L"/home/user")))
+        .WillOnce(Return(std::expected<void, std::error_code>{}));
+    EXPECT_CALL(mockFar, control(_, _, _, _))
+        .Times(3)
+        .WillRepeatedly(Return(std::expected<void, std::error_code>{}));
+    EXPECT_CALL(mockFar, message(_, _, _, _))
+        .WillOnce(Return(std::expected<void, std::error_code>{}));
+
+    Effects effects(mockFar);
+    Actions actions(mockStorage, mockFs, effects);
+
+    auto result = actions.processOpenCommand(ctx, L"cd:home");
     ASSERT_TRUE(result.has_value());
     EXPECT_EQ(*result, INVALID_HANDLE_VALUE);
-    EXPECT_GT(controlCallCount, 0);
-    EXPECT_EQ(lastSetPath, L"/home/user");
 }
 
 TEST_F(ActionsTest, ProcessOpenCommand_WithCdPrefixAndColon_OpensPanel) {
-    // cd: без аргумента -> открыть панель
-    auto result = actions::processOpenCommand(ctx, L"cd:");
+    NiceMock<MockFarApi> mockFar;
+    NiceMock<MockFileSystem> mockFs;
+    NiceMock<MockAliasStorage> mockStorage;
+
+    std::vector<Alias> empty;
+    EXPECT_CALL(mockStorage, getAll())
+        .WillOnce(ReturnRef(empty));
+
+    Effects effects(mockFar);
+    Actions actions(mockStorage, mockFs, effects);
+
+    auto result = actions.processOpenCommand(ctx, L"cd:");
     ASSERT_TRUE(result.has_value());
     EXPECT_NE(*result, INVALID_HANDLE_VALUE);
 }
 
 TEST_F(ActionsTest, ProcessOpenCommand_WithSaveCommand_SavesAlias) {
-    mockGetCurrentDirShouldFail = false;
-    
-    auto result = actions::processOpenCommand(ctx, L"cd::test");
+    NiceMock<MockFarApi> mockFar;
+    NiceMock<MockFileSystem> mockFs;
+    NiceMock<MockAliasStorage> mockStorage;
+
+    EXPECT_CALL(mockFs, getCurrentDir())
+        .WillOnce(Return(std::expected<std::wstring, std::error_code>(L"/mock/current/dir")));
+    EXPECT_CALL(mockStorage, addOrUpdate(Eq(Alias{L"test", L"/mock/current/dir"})))
+        .WillOnce(Return(std::expected<void, std::error_code>{}));
+    EXPECT_CALL(mockFar, message(_, _, _, _))
+        .WillOnce(Return(std::expected<void, std::error_code>{}));
+
+    Effects effects(mockFar);
+    Actions actions(mockStorage, mockFs, effects);
+
+    auto result = actions.processOpenCommand(ctx, L"cd::test");
     ASSERT_TRUE(result.has_value());
     EXPECT_EQ(*result, INVALID_HANDLE_VALUE);
-    
-    auto& mgr = AliasManager::Instance();
-    auto found = mgr.find(L"test");
-    ASSERT_TRUE(found.has_value());
-    EXPECT_EQ((*found)->path, L"/mock/current/dir");
 }
 
-TEST_F(ActionsTest, ProcessOpenCommand_InvalidCommand_ReturnsError) {
-    // Команда, не начинающаяся с "cd:" -> должна открыть панель, а не ошибку
-    // Но если это не "cd:", то она идёт в openAliasesPanel, что работает.
-    // Нужно проверить случай, когда команда начинается с "cd:", но аргумент некорректен.
-    // Например, "cd:   " – это должно открыть панель.
-    auto result = actions::processOpenCommand(ctx, L"cd:   ");
+TEST_F(ActionsTest, ProcessOpenCommand_InvalidCommand_OpensPanel) {
+    NiceMock<MockFarApi> mockFar;
+    NiceMock<MockFileSystem> mockFs;
+    NiceMock<MockAliasStorage> mockStorage;
+
+    std::vector<Alias> empty;
+    EXPECT_CALL(mockStorage, getAll())
+        .WillOnce(ReturnRef(empty));
+
+    Effects effects(mockFar);
+    Actions actions(mockStorage, mockFs, effects);
+
+    auto result = actions.processOpenCommand(ctx, L"somecommand");
     ASSERT_TRUE(result.has_value());
     EXPECT_NE(*result, INVALID_HANDLE_VALUE);
 }

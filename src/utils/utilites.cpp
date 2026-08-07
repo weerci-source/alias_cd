@@ -5,9 +5,6 @@
 #include <expected>
 #include <filesystem>
 
-std::expected<std::wstring, std::error_code> (*g_getCurrentDirW_impl)() noexcept = nullptr;
-std::expected<void, std::error_code> (*g_setCurrentDirW_impl)(const std::wstring &) noexcept = nullptr;
-
 std::string currentTime()
 {
     auto now = std::chrono::system_clock::now();
@@ -53,52 +50,6 @@ std::string WStringToUTF8(const std::wstring &wstr)
     std::string result(len, '\0');
     wcstombs(&result[0], wstr.c_str(), len + 1);
     return result;
-}
-
-std::expected<std::wstring, std::error_code> getCurrentDirW() noexcept
-{
-    if (g_getCurrentDirW_impl)
-    {
-        return g_getCurrentDirW_impl();
-    }
-
-    std::filesystem::path current;
-    try
-    {
-        current = std::filesystem::current_path();
-    }
-    catch (const std::filesystem::filesystem_error &e)
-    {
-        // Преобразуем исключение в error_code
-        return std::unexpected(e.code());
-    }
-    catch (...)
-    {
-        return std::unexpected(std::make_error_code(std::errc::io_error));
-    }
-    return current.wstring(); // или UTF8ToWString(current.string())
-}
-
-std::expected<void, std::error_code> setCurrentDirW(const std::wstring &path) noexcept
-{
-    if (g_setCurrentDirW_impl)
-    {
-        return g_setCurrentDirW_impl(path);
-    }
-
-    try
-    {
-        std::filesystem::current_path(path);
-    }
-    catch (const std::filesystem::filesystem_error &e)
-    {
-        return std::unexpected(e.code());
-    }
-    catch (...)
-    {
-        return std::unexpected(std::make_error_code(std::errc::io_error));
-    }
-    return {};
 }
 
 std::wstring trim(const std::wstring &s)

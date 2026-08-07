@@ -1,32 +1,32 @@
 #pragma once
 
-#include <expected>
-#include <system_error>
+#include "interfaces/IFarApi.h"
+#include "plugin_context.h"
 #include <string>
 #include <vector>
-#include <farplug-wide.h>
+#include <expected>
+#include <system_error>
 
-#include "plugin_context.h"
+class Effects
+{
+public:
+    explicit Effects(IFarApi &farApi) noexcept : farApi_(farApi) {}
 
-namespace effects {
+    void log(const std::string &msg) const;
 
-    // Указатели для переопределения в тестах (по умолчанию nullptr)
-    inline std::expected<void, std::error_code> (*g_control_impl)(const PluginContext&, HANDLE, int, int, void*) = nullptr;
-    inline std::expected<void, std::error_code> (*g_message_impl)(const PluginContext&, const std::wstring&, const std::vector<std::wstring>&, int, int) = nullptr;
+    std::expected<void, std::error_code> control(const PluginContext &ctx,
+                                                 HANDLE h, int cmd, int p1, void *p2) const noexcept;
+    std::expected<void, std::error_code> message(const PluginContext &ctx,
+                                                 const std::wstring &title,
+                                                 const std::vector<std::wstring> &items,
+                                                 int flags = 0, int icon = 0) const noexcept;
 
-    void log(const std::string& msg);
+    void showError(const PluginContext &ctx, const std::wstring &text) const;
+    void showInfo(const PluginContext &ctx, const std::wstring &text) const;
 
-    std::expected<void, std::error_code> control(const PluginContext& ctx,
-                                                 HANDLE h, int cmd, int p1, void* p2) noexcept;
+    std::expected<void, std::error_code> updateActivePanel(const PluginContext &ctx) const noexcept;
+    std::expected<void, std::error_code> closePlugin(const PluginContext &ctx, HANDLE hPlugin) const noexcept;
 
-    std::expected<void, std::error_code> message(const PluginContext& ctx,
-                                                 const std::wstring& title,
-                                                 const std::vector<std::wstring>& items,
-                                                 int flags = 0, int icon = 0) noexcept;
-
-    void showError(const PluginContext& ctx, const std::wstring& text);
-    void showInfo(const PluginContext& ctx, const std::wstring& text);
-
-    std::expected<void, std::error_code> updateActivePanel(const PluginContext& ctx) noexcept;
-    std::expected<void, std::error_code> closePlugin(const PluginContext& ctx, HANDLE hPlugin) noexcept;
-}
+private:
+    IFarApi &farApi_;
+};
