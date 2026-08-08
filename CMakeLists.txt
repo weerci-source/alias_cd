@@ -28,9 +28,13 @@ target_compile_definitions(alias_cd
         -DFAR_DONT_USE_INTERNALS
 )
 
-target_include_directories(alias_cd
-        PRIVATE /home/dima/far2l-dev/src/far2l/far2sdk/
-)
+option(FAR2L_SDK_PATH "Path to far2l SDK" "")
+
+if(FAR2L_SDK_PATH)
+    target_include_directories(alias_cd PRIVATE ${FAR2L_SDK_PATH})
+else()
+    target_include_directories(alias_cd PRIVATE /home/dima/far2l-dev/src/far2l/far2sdk/)
+endif()
 
 get_target_property(INC_DIRS alias_cd INCLUDE_DIRECTORIES)
 
