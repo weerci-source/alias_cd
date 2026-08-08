@@ -50,6 +50,7 @@ endif ()
 
 option(BUILD_TESTING "Build unit tests" ON)
 
+set(FETCHCONTENT_BASE_DIR ${CMAKE_SOURCE_DIR}/external)
 if (BUILD_TESTING)
     enable_testing()
 

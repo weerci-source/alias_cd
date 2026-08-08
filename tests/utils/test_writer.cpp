@@ -158,3 +158,44 @@ TEST_F(WriterTest, OpenOverwriteFailsOnInvalidPath) {
     EXPECT_FALSE(result.has_value());
     EXPECT_EQ(result.error(), std::make_error_code(std::errc::no_such_file_or_directory));
 }
+
+TEST_F(WriterTest, WriteWithFormatterFailsOnClosedContext) {
+    writer::Context ctx;
+    auto customFmt = [](std::string_view msg) { return "[" + std::string(msg) + "]\n"; };
+    auto result = writer::write(ctx, "test", customFmt);
+    EXPECT_FALSE(result.has_value());
+    EXPECT_EQ(result.error(), std::make_error_code(std::errc::bad_file_descriptor));
+}
+
+TEST_F(WriterTest, WriteVectorFailsOnClosedContext) {
+    writer::Context ctx;
+    std::vector<std::string> msgs = {"a", "b"};
+    auto result = writer::write(ctx, msgs);
+    EXPECT_FALSE(result.has_value());
+    EXPECT_EQ(result.error(), std::make_error_code(std::errc::bad_file_descriptor));
+}
+
+TEST_F(WriterTest, ReadAllLinesWithEmptyLinesSkipsThem) {
+    std::string path = testFile.string();
+    std::ofstream file(path);
+    file << "line1\n\nline2\n";
+    file.close();
+    auto result = writer::readAllLines(path);
+    ASSERT_TRUE(result.has_value());
+    EXPECT_EQ(result->size(), 2);
+    EXPECT_EQ((*result)[0], "line1");
+    EXPECT_EQ((*result)[1], "line2");
+}
+
+TEST_F(WriterTest, ReadAllLinesVersion2WithEmptyLines) {
+    std::string path = testFile.string();
+    std::ofstream file(path);
+    file << "line1\n\nline2\n";
+    file.close();
+    std::vector<std::string> out;
+    auto result = writer::readAllLines(path, out);
+    EXPECT_TRUE(result.has_value());
+    EXPECT_EQ(out.size(), 2);
+    EXPECT_EQ(out[0], "line1");
+    EXPECT_EQ(out[1], "line2");
+}

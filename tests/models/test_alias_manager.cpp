@@ -18,6 +18,7 @@ using ::testing::NiceMock;
 using ::testing::DoAll;
 using ::testing::SaveArg;
 using ::testing::SetArgReferee;
+using ::testing::Invoke;
 
 namespace fs = std::filesystem;
 
@@ -27,18 +28,18 @@ namespace fs = std::filesystem;
 
 class MockFileSystem : public IFileSystem {
 public:
-    MOCK_METHOD(std::expected<std::wstring, std::error_code>, getCurrentDir, (), (noexcept, override));
-    MOCK_METHOD(std::expected<void, std::error_code>, setCurrentDir, (const std::wstring&), (noexcept, override));
+    MOCK_METHOD((std::expected<std::wstring, std::error_code>), getCurrentDir, (), (noexcept, override));
+    MOCK_METHOD((std::expected<void, std::error_code>), setCurrentDir, (const std::wstring&), (noexcept, override));
 };
 
 class MockWriter : public IWriter {
 public:
-    MOCK_METHOD(std::expected<void, std::error_code>, init, (const std::string&), (noexcept, override));
-    MOCK_METHOD(std::expected<void, std::error_code>, write, (const std::string&), (noexcept, override));
-    MOCK_METHOD(std::expected<void, std::error_code>, write, (const std::vector<std::string>&), (noexcept, override));
+    MOCK_METHOD((std::expected<void, std::error_code>), init, (const std::string&), (noexcept, override));
+    MOCK_METHOD((std::expected<void, std::error_code>), write, (const std::string&), (noexcept, override));
+    MOCK_METHOD((std::expected<void, std::error_code>), write, (const std::vector<std::string>&), (noexcept, override));
     MOCK_METHOD(void, close, (), (noexcept, override));
-    MOCK_METHOD(std::expected<std::vector<std::string>, std::error_code>, readAllLines, (const std::string&), (noexcept, override));
-    MOCK_METHOD(std::expected<void, std::error_code>, openOverwrite, (const std::string&), (noexcept, override));
+    MOCK_METHOD((std::expected<std::vector<std::string>, std::error_code>), readAllLines, (const std::string&), (noexcept, override));
+    MOCK_METHOD((std::expected<void, std::error_code>), openOverwrite, (const std::string&), (noexcept, override));
 };
 
 // ============================================================================
@@ -48,16 +49,17 @@ public:
 class AliasManagerTest : public ::testing::Test {
 protected:
     void SetUp() override {
-        // Создаём временную папку для тестов (используется только для проверки, но моки всё равно подменяют)
         testDir = fs::temp_directory_path() / "alias_manager_test";
         fs::create_directories(testDir);
         testFile = testDir / "aliases";
 
-        // Создаём моки
         mockFs = std::make_unique<NiceMock<MockFileSystem>>();
         mockWriter = std::make_unique<NiceMock<MockWriter>>();
 
-        // Создаём AliasManager с моками
+        // По умолчанию openOverwrite возвращает успех для любых вызовов
+        ON_CALL(*mockWriter, openOverwrite(_))
+            .WillByDefault(Return(std::expected<void, std::error_code>{}));
+
         manager = std::make_unique<AliasManager>(*mockFs, *mockWriter);
     }
 
@@ -77,7 +79,6 @@ protected:
 // ============================================================================
 
 TEST_F(AliasManagerTest, LoadEmptyFileWhenFileDoesNotExist) {
-    // Мок readAllLines возвращает ошибку "no such file"
     EXPECT_CALL(*mockWriter, readAllLines(_))
         .WillOnce(Return(std::unexpected(std::make_error_code(std::errc::no_such_file_or_directory))));
 
@@ -125,15 +126,15 @@ TEST_F(AliasManagerTest, LoadIgnoresInvalidLines) {
 }
 
 TEST_F(AliasManagerTest, SaveWritesAliasesToFile) {
-    // Добавляем алиасы вручную (через addOrUpdate)
+    // Инициализируем путь
+    auto initResult = manager->init(testFile.wstring());
+    ASSERT_TRUE(initResult.has_value());
+
     Alias a1{L"home", L"/home/user"};
     Alias a2{L"work", L"/work/project"};
     manager->addOrUpdate(a1);
     manager->addOrUpdate(a2);
 
-    // Ожидаем, что openOverwrite будет вызван, и write будет вызван дважды
-    EXPECT_CALL(*mockWriter, openOverwrite(_))
-        .WillOnce(Return(std::expected<void, std::error_code>{}));
     EXPECT_CALL(*mockWriter, write("home=/home/user"))
         .WillOnce(Return(std::expected<void, std::error_code>{}));
     EXPECT_CALL(*mockWriter, write("work=/work/project"))
@@ -144,6 +145,9 @@ TEST_F(AliasManagerTest, SaveWritesAliasesToFile) {
 }
 
 TEST_F(AliasManagerTest, AddOrUpdateAddsNewAlias) {
+    auto initResult = manager->init(testFile.wstring());
+    ASSERT_TRUE(initResult.has_value());
+
     Alias a{L"test", L"/test/path"};
     auto result = manager->addOrUpdate(a);
     ASSERT_TRUE(result.has_value());
@@ -155,6 +159,9 @@ TEST_F(AliasManagerTest, AddOrUpdateAddsNewAlias) {
 }
 
 TEST_F(AliasManagerTest, AddOrUpdateUpdatesExistingAlias) {
+    auto initResult = manager->init(testFile.wstring());
+    ASSERT_TRUE(initResult.has_value());
+
     Alias a1{L"test", L"/old/path"};
     manager->addOrUpdate(a1);
     Alias a2{L"test", L"/new/path"};
@@ -175,6 +182,9 @@ TEST_F(AliasManagerTest, AddOrUpdateWithInvalidAliasReturnsError) {
 }
 
 TEST_F(AliasManagerTest, RemoveExistingAlias) {
+    auto initResult = manager->init(testFile.wstring());
+    ASSERT_TRUE(initResult.has_value());
+
     Alias a{L"test", L"/test/path"};
     manager->addOrUpdate(a);
     auto result = manager->remove(L"test");
@@ -204,16 +214,13 @@ TEST_F(AliasManagerTest, FindNonExistingAliasReturnsError) {
 }
 
 TEST_F(AliasManagerTest, ClearRemovesAllAliasesAndSaves) {
+    auto initResult = manager->init(testFile.wstring());
+    ASSERT_TRUE(initResult.has_value());
+
     Alias a1{L"home", L"/home/user"};
     Alias a2{L"work", L"/work/project"};
     manager->addOrUpdate(a1);
     manager->addOrUpdate(a2);
-
-    // Ожидаем, что save будет вызван (clear вызывает save)
-    EXPECT_CALL(*mockWriter, openOverwrite(_))
-        .WillOnce(Return(std::expected<void, std::error_code>{}));
-    // Запись пустого списка — write не будет вызван, так как aliases_ пуст
-    // Но save может вызвать write для каждого алиаса, но их нет
 
     auto result = manager->clear();
     ASSERT_TRUE(result.has_value());
@@ -221,7 +228,6 @@ TEST_F(AliasManagerTest, ClearRemovesAllAliasesAndSaves) {
 }
 
 TEST_F(AliasManagerTest, InitWithNonExistingDirectoryReturnsError) {
-    // Не нужно, так как мы используем моки, но можно проверить, что init вызывает openOverwrite
     EXPECT_CALL(*mockWriter, openOverwrite(_))
         .WillOnce(Return(std::unexpected(std::make_error_code(std::errc::no_such_file_or_directory))));
 

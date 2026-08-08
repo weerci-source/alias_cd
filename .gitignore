@@ -3,8 +3,9 @@ build/
 build-release/
 build-test/
 build-coverage/
-cmake-build-*/
-
+cmake-build-*/         
+external/
+merge.txt
 # Объектные файлы
 *.o
 *.so

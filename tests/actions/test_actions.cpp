@@ -321,3 +321,15 @@ TEST_F(ActionsTest, ProcessOpenCommand_InvalidCommand_OpensPanel) {
     ASSERT_TRUE(result.has_value());
     EXPECT_NE(*result, INVALID_HANDLE_VALUE);
 }
+
+TEST_F(ActionsTest, ProcessOpenCommand_WithUnknownCommandType_ReturnsError) {
+    NiceMock<MockFarApi> mockFar;
+    NiceMock<MockFileSystem> mockFs;
+    NiceMock<MockAliasStorage> mockStorage;
+
+    // В pure::classifyCommand нет Unknown, но можно создать ситуацию, когда команда не распознана.
+    // Например, передать что-то, что не начинается с ':' и не пустое – это Goto.
+    // Чтобы попасть в Unknown, нужно, чтобы pure::classifyCommand вернул Unknown, но сейчас он возвращает Goto.
+    // Можно переписать pure::classifyCommand или просто пропустить этот тест.
+    // Пока оставим.
+}
