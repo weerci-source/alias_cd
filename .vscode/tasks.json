@@ -1,8 +1,11 @@
 {
     "version": "2.0.0",
     "tasks": [
+        // ================================================================
+        // Конфигурация Debug (без тестов)
+        // ================================================================
         {
-            "label": "CMake: Configure",
+            "label": "Configure Debug",
             "type": "shell",
             "command": "cmake",
             "args": [
@@ -11,44 +14,46 @@
                 "-S",
                 ".",
                 "-DCMAKE_BUILD_TYPE=Debug",
-                "-DBUILD_TESTS=OFF"
+                "-DBUILD_TESTING=OFF"
             ],
             "group": "build",
             "problemMatcher": []
         },
+        // ================================================================
+        // Сборка Debug (только плагин, без тестов)
+        // ================================================================
         {
-            "label": "CMake: Build",
+            "label": "Build Debug",
             "type": "shell",
-            "command": "rm -f ${workspaceFolder}/build/alias_cd.far-plug-wide && cmake --build build",
+            "command": "cmake --build build --target alias_cd",
             "group": {
                 "kind": "build",
                 "isDefault": true
             },
             "dependsOn": [
-                "CMake: Configure"
+                "Configure Debug"
             ],
             "problemMatcher": [
                 "$gcc"
             ]
         },
-        {
-            "label": "Run All Tests",
+                {
+            "label": "Test with Coverage",
             "type": "shell",
-            "command": "ctest",
+            "command": "bash",
             "args": [
-                "--test-dir",
-                "build",
-                "--output-on-failure"
+                "-c",
+                "rm -rf build-coverage && mkdir build-coverage && cd build-coverage && cmake .. -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=ON -DCMAKE_CXX_FLAGS=\"--coverage\" -DCMAKE_EXE_LINKER_FLAGS=\"--coverage\" -DFETCHCONTENT_BASE_DIR=${workspaceFolder}/external && cmake --build . --target tests && ctest --output-on-failure && mkdir -p coverage_report && gcovr --root .. --html --html-details -o coverage_report/index.html --exclude '.*/tests/.*' --exclude '.*/build-coverage/_deps/.*' && gcovr --root .. --txt -o coverage_report.txt --exclude '.*/tests/.*' --exclude '.*/build-coverage/_deps/.*' && firefox coverage_report/index.html && echo 'Coverage report generated in build-coverage/coverage_report/index.html and text report in build-coverage/coverage_report.txt'"
             ],
             "group": "test",
-            "dependsOn": [
-                "CMake: Build"
-            ],
             "problemMatcher": [],
-            "detail": "Run all tests via CTest"
+            "detail": "Build tests from scratch with coverage flags, run them, generate report, open HTML in browser"
         },
+        // ================================================================
+        // Конфигурация Release
+        // ================================================================
         {
-            "label": "Release: Configure",
+            "label": "Configure Release",
             "type": "shell",
             "command": "cmake",
             "args": [
@@ -57,62 +62,21 @@
                 "-S",
                 ".",
                 "-DCMAKE_BUILD_TYPE=Release",
-                "-DBUILD_TESTS=OFF"
+                "-DBUILD_TESTING=OFF"
             ],
-            "group": "none",
+            "group": "build",
             "problemMatcher": []
         },
+        // ================================================================
+        // Сборка Release, копирование, упаковка и запуск far2l
+        // ================================================================
         {
-            "label": "Release: Build",
+            "label": "Build, Copy, Package & Run far2l",
             "type": "shell",
-            "command": "cmake",
-            "args": [
-                "--build",
-                "build-release",
-                "--config",
-                "Release"
-            ],
+            "command": "cmake --build build-release --config Release && cp build-release/alias_cd.far-plug-wide /home/dima/far2l-dev/install/lib/far2l/Plugins/alias_cd/plug/ && tar -czf alias_cd-plugin-release.tar.gz -C build-release alias_cd.far-plug-wide && LD_LIBRARY_PATH=/home/dima/far2l-dev/install/lib/far2l /home/dima/far2l-dev/install/bin/far2l",
             "group": "none",
             "dependsOn": [
-                "Release: Configure"
-            ],
-            "problemMatcher": [
-                "$gcc"
-            ]
-        },
-        {
-            "label": "Release: Package",
-            "type": "shell",
-            "command": "tar",
-            "args": [
-                "-czf",
-                "${workspaceFolder}/alias_cd-plugin-release.tar.gz",
-                "-C",
-                "${workspaceFolder}/build-release",
-                "alias_cd.far-plug-wide"
-            ],
-            "group": "none",
-            "dependsOn": [
-                "Release: Strip"
-            ],
-            "problemMatcher": []
-        },
-        // Главная задача – просто запустите её, и она выполнит всё
-        {
-            "label": "Release: Build and Package",
-            "dependsOrder": "sequence",
-            "dependsOn": [
-                "Release: Package"
-            ],
-            "problemMatcher": []
-        },
-        {
-            "label": "Build, Copy & Run far2l",
-            "type": "shell",
-            "command": "rm -f ${workspaceFolder}/build/alias_cd.far-plug-wide && cmake --build build && cp ${workspaceFolder}/build/alias_cd.far-plug-wide /home/dima/far2l-dev/install/lib/far2l/Plugins/alias_cd/plug/ && LD_LIBRARY_PATH=/home/dima/far2l-dev/install/lib/far2l /home/dima/far2l-dev/install/bin/far2l",
-            "group": "none",
-            "dependsOn": [
-                "CMake: Configure"
+                "Configure Release"
             ],
             "problemMatcher": [
                 "$gcc"
