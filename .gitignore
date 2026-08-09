@@ -3,6 +3,7 @@ build/
 build-release/
 build-test/
 build-coverage/
+build-fast/
 cmake-build-*/         
 external/
 merge.txt

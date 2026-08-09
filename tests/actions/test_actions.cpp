@@ -21,9 +21,11 @@ using ::testing::Eq;
 // Моки интерфейсов
 // ============================================================================
 
+using ExpectedVoid = std::expected<void, std::error_code>; // 
+
 class MockFarApi : public IFarApi {
 public:
-    MOCK_METHOD((std::expected<void, std::error_code>), control, (HANDLE, int, int, void*), (noexcept, override));
+    MOCK_METHOD(ExpectedVoid, control, (HANDLE, int, int, void*), (noexcept, override));
     MOCK_METHOD((std::expected<void, std::error_code>), message, (const std::wstring&, const std::vector<std::wstring>&, int, int), (noexcept, override));
 };
 
@@ -332,4 +334,45 @@ TEST_F(ActionsTest, ProcessOpenCommand_WithUnknownCommandType_ReturnsError) {
     // Чтобы попасть в Unknown, нужно, чтобы pure::classifyCommand вернул Unknown, но сейчас он возвращает Goto.
     // Можно переписать pure::classifyCommand или просто пропустить этот тест.
     // Пока оставим.
+}
+
+TEST_F(ActionsTest, GotoAlias_CallsSetPanelDirWithCorrectPath) {
+    NiceMock<MockFarApi> mockFar;
+    NiceMock<MockFileSystem> mockFs;
+    NiceMock<MockAliasStorage> mockStorage;
+
+    Alias existing{L"home", L"/home/user"};
+    EXPECT_CALL(mockStorage, find(Eq(L"home")))
+        .WillOnce(Return(std::expected<const Alias*, std::error_code>(&existing)));
+
+    EXPECT_CALL(mockFs, setCurrentDir(Eq(L"/home/user")))
+        .WillOnce(Return(std::expected<void, std::error_code>{}));
+
+    // Проверяем, что control вызывается с правильными аргументами
+    {
+        ::testing::InSequence seq;
+        // Первый вызов – FCTL_SETPANELDIR с путём
+        EXPECT_CALL(mockFar, control(PANEL_ACTIVE, FCTL_SETPANELDIR, 0, _))
+            .WillOnce(::testing::WithArg<3>([](void* p2) {
+                const wchar_t* path = static_cast<const wchar_t*>(p2);
+                EXPECT_STREQ(path, L"/home/user");
+                return std::expected<void, std::error_code>{};
+            }));
+        // Второй – FCTL_UPDATEPANEL
+        EXPECT_CALL(mockFar, control(PANEL_ACTIVE, FCTL_UPDATEPANEL, 0, nullptr))
+            .WillOnce(Return(std::expected<void, std::error_code>{}));
+        // Третий – FCTL_REDRAWPANEL
+        EXPECT_CALL(mockFar, control(PANEL_ACTIVE, FCTL_REDRAWPANEL, 0, nullptr))
+            .WillOnce(Return(std::expected<void, std::error_code>{}));
+    }
+
+    EXPECT_CALL(mockFar, message(_, _, _, _))
+        .WillOnce(Return(std::expected<void, std::error_code>{}));
+
+    Effects effects(mockFar);
+    Actions actions(mockStorage, mockFs, effects);
+
+    auto result = actions.gotoAlias(ctx, L"home");
+    ASSERT_TRUE(result.has_value());
+    EXPECT_EQ(*result, INVALID_HANDLE_VALUE);
 }

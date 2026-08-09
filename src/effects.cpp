@@ -33,13 +33,20 @@ void Effects::showInfo(const PluginContext &ctx, const std::wstring &text) const
     static_cast<void>(message(ctx, L"Alias CD", {text}));
 }
 
-std::expected<void, std::error_code> Effects::updateActivePanel(const PluginContext &ctx) const noexcept
+std::expected<void, std::error_code> Effects::updateActivePanel(const PluginContext &ctx,
+                                                                const std::wstring &newPath) const noexcept
 {
-    return control(ctx, PANEL_ACTIVE, FCTL_SETPANELDIR, 0, nullptr)
-        .and_then([&]()
-                  { return control(ctx, PANEL_ACTIVE, FCTL_UPDATEPANEL, 0, nullptr); })
-        .and_then([&]()
-                  { return control(ctx, PANEL_ACTIVE, FCTL_REDRAWPANEL, 0, nullptr); });
+    // Устанавливаем каталог панели
+    auto setDir = farApi_.control(PANEL_ACTIVE, FCTL_SETPANELDIR, 0, (void*)newPath.c_str());
+    if (!setDir) return std::unexpected(setDir.error());
+
+    auto update = farApi_.control(PANEL_ACTIVE, FCTL_UPDATEPANEL, 0, nullptr);
+    if (!update) return std::unexpected(update.error());
+
+    auto redraw = farApi_.control(PANEL_ACTIVE, FCTL_REDRAWPANEL, 0, nullptr);
+    if (!redraw) return std::unexpected(redraw.error());
+
+    return {};
 }
 
 std::expected<void, std::error_code> Effects::closePlugin(const PluginContext &ctx, HANDLE hPlugin) const noexcept

@@ -37,7 +37,7 @@
                 "$gcc"
             ]
         },
-                {
+        {
             "label": "Test with Coverage",
             "type": "shell",
             "command": "bash",
@@ -81,6 +81,40 @@
             "problemMatcher": [
                 "$gcc"
             ]
+        },
+        {
+            "label": "Configure Fast Build",
+            "type": "shell",
+            "command": "cmake",
+            "args": [
+                "-B", "build-fast",
+                "-S", ".",
+                "-DCMAKE_BUILD_TYPE=Debug",
+                "-DBUILD_TESTING=ON"
+            ],
+            "group": "build",
+            "problemMatcher": []
+        },
+        {
+            "label": "Build Tests (fast)",
+            "type": "shell",
+            "command": "cmake --build build-fast --target tests -j$(nproc)",
+            "group": "build",
+            "dependsOn": ["Configure Fast Build"],
+            "problemMatcher": ["$gcc"]
+        },
+        {
+            "label": "Run Specific Test (GotoAlias)",
+            "type": "shell",
+            "command": "bash",
+            "args": [
+                "-c",
+                "cmake --build build-fast --target tests -j$(nproc) && cd build-fast && ctest -R 'GotoAlias_CallsSetPanelDirWithCorrectPath' --output-on-failure"
+            ],
+            "group": "test",
+            "dependsOn": ["Configure Fast Build"],
+            "problemMatcher": ["$gcc"],
+            "detail": "Быстро собрать и запустить только наш тест"
         }
     ]
 }

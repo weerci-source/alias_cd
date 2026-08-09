@@ -24,7 +24,8 @@ public:
     void showError(const PluginContext &ctx, const std::wstring &text) const;
     void showInfo(const PluginContext &ctx, const std::wstring &text) const;
 
-    std::expected<void, std::error_code> updateActivePanel(const PluginContext &ctx) const noexcept;
+     std::expected<void, std::error_code> updateActivePanel(const PluginContext &ctx,
+                                                           const std::wstring &newPath) const noexcept;
     std::expected<void, std::error_code> closePlugin(const PluginContext &ctx, HANDLE hPlugin) const noexcept;
 
 private:
