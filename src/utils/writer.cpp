@@ -15,7 +15,7 @@ namespace writer
 		return Context();
 	}
 
-	std::expected<void, std::error_code> init(Context& ctx, const std::string& filename)
+	std::expected<void, std::error_code> init(Context &ctx, const std::string &filename)
 	{
 		std::lock_guard<std::mutex> lock(ctx.mtx);
 		if (ctx.file.is_open())
@@ -31,7 +31,7 @@ namespace writer
 		return {};
 	}
 
-	std::expected<void, std::error_code> write(Context& ctx, const std::string& msg, Formatter frm)
+	std::expected<void, std::error_code> write(Context &ctx, const std::string &msg, Formatter frm)
 	{
 		std::lock_guard<std::mutex> lock(ctx.mtx);
 		if (!ctx.file.is_open())
@@ -50,7 +50,7 @@ namespace writer
 		return {};
 	}
 
-	std::expected<void, std::error_code> write(Context& ctx, const std::vector<std::string>& msgs, Formatter frm)
+	std::expected<void, std::error_code> write(Context &ctx, const std::vector<std::string> &msgs, Formatter frm)
 	{
 		std::lock_guard<std::mutex> lock(ctx.mtx);
 		if (!ctx.file.is_open())
@@ -58,7 +58,7 @@ namespace writer
 			return std::unexpected(
 				std::make_error_code(std::errc::bad_file_descriptor));
 		}
-		for (const auto& msg : msgs)
+		for (const auto &msg : msgs)
 		{
 			ctx.file << (frm ? frm(msg) : ctx.frm(msg));
 		}
@@ -71,7 +71,7 @@ namespace writer
 		return {};
 	}
 
-	void close(Context& ctx)
+	void close(Context &ctx)
 	{
 		std::lock_guard<std::mutex> lock(ctx.mtx);
 		if (ctx.file.is_open())
@@ -80,7 +80,7 @@ namespace writer
 		}
 	}
 
-	std::expected<std::vector<std::string>, std::error_code> readAllLines(const std::string& filename)
+	std::expected<std::vector<std::string>, std::error_code> readAllLines(const std::string &filename)
 	{
 		std::ifstream inFile(filename);
 		if (!inFile.is_open())
@@ -107,7 +107,7 @@ namespace writer
 		return lines;
 	}
 
-	std::expected<void, std::error_code> readAllLines(const std::string& filename, std::vector<std::string>& out)
+	std::expected<void, std::error_code> readAllLines(const std::string &filename, std::vector<std::string> &out)
 	{
 		std::ifstream inFile(filename);
 		if (!inFile.is_open())
@@ -136,14 +136,17 @@ namespace writer
 		return {};
 	}
 
-	std::expected<void, std::error_code> openOverwrite(Context& ctx, const std::string& filename) noexcept {
+	std::expected<void, std::error_code> openOverwrite(Context &ctx, const std::string &filename) noexcept
+	{
 
 		std::lock_guard<std::mutex> lock(ctx.mtx);
-		if (ctx.file.is_open()) {
+		if (ctx.file.is_open())
+		{
 			ctx.file.close();
 		}
 		ctx.file.open(filename, std::ios::out | std::ios::trunc);
-		if (!ctx.file.is_open()) {
+		if (!ctx.file.is_open())
+		{
 			return std::unexpected(std::make_error_code(std::errc::no_such_file_or_directory));
 		}
 		return {};

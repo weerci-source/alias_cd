@@ -1,50 +1,32 @@
 #pragma once
 
+#include "../interfaces/IAliasStorage.h"
+#include "../interfaces/IFileSystem.h"
+#include "../interfaces/IWriter.h"
 #include "alias.h"
-#include "../utils/writer.h"   
+#include <memory>
 #include <vector>
 #include <string>
-#include <expected>
-#include <system_error>
 
-class AliasManager {
+class AliasManager : public IAliasStorage {
 public:
-    static AliasManager& Instance();
+    // Конструктор принимает ссылки на зависимости (DI)
+    AliasManager(IFileSystem& fs, IWriter& writer) noexcept;
 
-    // Инициализация: путь к файлу и контекст для записи
-    std::expected<void, std::error_code> init(const std::wstring& filePath) noexcept;
-
-    // Загрузка из файла
-    std::expected<void, std::error_code> load() noexcept;
-
-    // Сохранение в файл
-    std::expected<void, std::error_code> save() noexcept;
-
-    // Добавление/обновление
-    std::expected<void, std::error_code> addOrUpdate(const Alias& alias) noexcept;
-
-    // Удаление по имени
-    std::expected<void, std::error_code> remove(const std::wstring& name) noexcept;
-
-    // Поиск по имени (возвращает указатель или ошибку)
-    std::expected<const Alias*, std::error_code> find(const std::wstring& name) const noexcept;
-
-    // Получение всех алиасов
-    const std::vector<Alias>& getAll() const noexcept { return aliases_; }
-
-    // Очистка всех
-    std::expected<void, std::error_code> clear() noexcept;
-
-    AliasManager(const AliasManager&) = delete;
-    AliasManager& operator=(const AliasManager&) = delete;
+    std::expected<void, std::error_code> init(const std::wstring& filePath) noexcept override;
+    std::expected<void, std::error_code> load() noexcept override;
+    std::expected<void, std::error_code> save() noexcept override;
+    std::expected<void, std::error_code> addOrUpdate(const Alias& alias) noexcept override;
+    std::expected<void, std::error_code> remove(const std::wstring& name) noexcept override;
+    std::expected<const Alias*, std::error_code> find(const std::wstring& name) const noexcept override;
+    const std::vector<Alias>& getAll() const noexcept override { return aliases_; }
+    std::expected<void, std::error_code> clear() noexcept override;
 
 private:
-    AliasManager() = default;
-
+    IFileSystem& fs_;
+    IWriter& writer_;
     std::vector<Alias> aliases_;
     std::wstring filePath_;
-    writer::Context ctx_;   // контекст для записи
 
-    // Вспомогательная функция для получения пути по умолчанию
-    static std::wstring getDefaultFilePath() noexcept;
+    std::wstring getDefaultFilePath() const noexcept;
 };

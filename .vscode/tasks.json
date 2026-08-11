@@ -2,10 +2,10 @@
     "version": "2.0.0",
     "tasks": [
         // ================================================================
-        // Основная сборка (Debug) – без тестов
+        // Конфигурация Debug (без тестов)
         // ================================================================
         {
-            "label": "CMake: Configure",
+            "label": "Configure Debug",
             "type": "shell",
             "command": "cmake",
             "args": [
@@ -19,26 +19,41 @@
             "group": "build",
             "problemMatcher": []
         },
+        // ================================================================
+        // Сборка Debug (только плагин, без тестов)
+        // ================================================================
         {
-            "label": "CMake: Build",
+            "label": "Build Debug",
             "type": "shell",
-            "command": "rm -f ${workspaceFolder}/build/alias_cd.far-plug-wide && cmake --build build",
+            "command": "cmake --build build --target alias_cd",
             "group": {
                 "kind": "build",
                 "isDefault": true
             },
             "dependsOn": [
-                "CMake: Configure"
+                "Configure Debug"
             ],
             "problemMatcher": [
                 "$gcc"
             ]
         },
+        {
+            "label": "Test with Coverage",
+            "type": "shell",
+            "command": "bash",
+            "args": [
+                "-c",
+                "rm -rf build-coverage && mkdir build-coverage && cd build-coverage && cmake .. -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=ON -DCMAKE_CXX_FLAGS=\"--coverage\" -DCMAKE_EXE_LINKER_FLAGS=\"--coverage\" -DFETCHCONTENT_BASE_DIR=${workspaceFolder}/external && cmake --build . --target tests && ctest --output-on-failure && mkdir -p coverage_report && gcovr --root .. --html --html-details -o coverage_report/index.html --exclude '.*/tests/.*' --exclude '.*/build-coverage/_deps/.*' && gcovr --root .. --txt -o coverage_report.txt --exclude '.*/tests/.*' --exclude '.*/build-coverage/_deps/.*' && firefox coverage_report/index.html && echo 'Coverage report generated in build-coverage/coverage_report/index.html and text report in build-coverage/coverage_report.txt'"
+            ],
+            "group": "test",
+            "problemMatcher": [],
+            "detail": "Build tests from scratch with coverage flags, run them, generate report, open HTML in browser"
+        },
         // ================================================================
-        // Release-сборка
+        // Конфигурация Release
         // ================================================================
         {
-            "label": "Release: Configure",
+            "label": "Configure Release",
             "type": "shell",
             "command": "cmake",
             "args": [
@@ -49,33 +64,31 @@
                 "-DCMAKE_BUILD_TYPE=Release",
                 "-DBUILD_TESTING=OFF"
             ],
-            "group": "none",
+            "group": "build",
             "problemMatcher": []
         },
+        // ================================================================
+        // Сборка Release, копирование, упаковка и запуск far2l
+        // ================================================================
         {
-            "label": "Release: Build, Copy, Package & Run far2l",
+            "label": "Build, Copy, Package & Run far2l",
             "type": "shell",
-            "command": "cmake --build ${workspaceFolder}/build-release --config Release && cp ${workspaceFolder}/build-release/alias_cd.far-plug-wide /home/dima/far2l-dev/install/lib/far2l/Plugins/alias_cd/plug/ && tar -czf ${workspaceFolder}/alias_cd-plugin-release.tar.gz -C ${workspaceFolder}/build-release alias_cd.far-plug-wide && LD_LIBRARY_PATH=/home/dima/far2l-dev/install/lib/far2l /home/dima/far2l-dev/install/bin/far2l",
+            "command": "cmake --build build-release --config Release && cp build-release/alias_cd.far-plug-wide /home/dima/far2l-dev/install/lib/far2l/Plugins/alias_cd/plug/ && tar -czf alias_cd-plugin-release.tar.gz -C build-release alias_cd.far-plug-wide && LD_LIBRARY_PATH=/home/dima/far2l-dev/install/lib/far2l /home/dima/far2l-dev/install/bin/far2l",
             "group": "none",
             "dependsOn": [
-                "Release: Configure"
+                "Configure Release"
             ],
             "problemMatcher": [
                 "$gcc"
             ]
         },
-        // ================================================================
-        // ЗАДАЧИ ДЛЯ ТЕСТОВ (используют отдельную папку build-test)
-        // ================================================================
         {
-            "label": "Test: Configure",
+            "label": "Configure Fast Build",
             "type": "shell",
             "command": "cmake",
             "args": [
-                "-B",
-                "build-test",
-                "-S",
-                ".",
+                "-B", "build-fast",
+                "-S", ".",
                 "-DCMAKE_BUILD_TYPE=Debug",
                 "-DBUILD_TESTING=ON"
             ],
@@ -83,48 +96,25 @@
             "problemMatcher": []
         },
         {
-            "label": "Test: Build",
+            "label": "Build Tests (fast)",
             "type": "shell",
-            "command": "cmake --build build-test --target test_utf_conversions test_writer test_alias_manager test_utilites",
+            "command": "cmake --build build-fast --target tests -j$(nproc)",
             "group": "build",
-            "dependsOn": [
-                "Test: Configure"
-            ],
-            "problemMatcher": [
-                "$gcc"
-            ]
+            "dependsOn": ["Configure Fast Build"],
+            "problemMatcher": ["$gcc"]
         },
         {
-            "label": "Test: Build and Run",
+            "label": "Run Specific Test (GotoAlias)",
             "type": "shell",
-            "command": "cmake --build build-test --target test_utf_conversions test_writer test_alias_manager test_utilites && ctest --test-dir build-test --output-on-failure",
-            "group": "test",
-            "dependsOn": [
-                "Test: Configure"
-            ],
-            "problemMatcher": [
-                "$gcc"
-            ],
-            "detail": "Build all tests and run them"
-        },
-        // ================================================================
-        // Запуск уже собранных тестов (без пересборки)
-        // ================================================================
-        {
-            "label": "Run All Tests",
-            "type": "shell",
-            "command": "ctest",
+            "command": "bash",
             "args": [
-                "--test-dir",
-                "build-test",
-                "--output-on-failure"
+                "-c",
+                "cmake --build build-fast --target tests -j$(nproc) && cd build-fast && ctest -R 'GotoAlias_CallsSetPanelDirWithCorrectPath' --output-on-failure"
             ],
             "group": "test",
-            "dependsOn": [
-                "Test: Build"
-            ],
-            "problemMatcher": [],
-            "detail": "Run all tests via CTest (build-test)"
+            "dependsOn": ["Configure Fast Build"],
+            "problemMatcher": ["$gcc"],
+            "detail": "Быстро собрать и запустить только наш тест"
         }
     ]
 }

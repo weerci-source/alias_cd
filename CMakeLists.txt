@@ -6,52 +6,68 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 set(SOURCES
-    src/farwrapper/far2l_wrappers.cpp
-    src/models/alias.cpp
-    src/models/alias_manager.cpp
-    src/utils/writer.cpp
-    src/utils/utilites.cpp
-    alias_cd.cpp
+        src/farwrapper/far2l_wrappers.cpp
+        src/models/alias.cpp
+        src/models/alias_manager.cpp
+        src/utils/writer.cpp
+        src/utils/utilites.cpp
+        src/effects.cpp
+        src/actions.cpp
+        src/pure.cpp
+        alias_cd.cpp
+        src/real/RealFarApi.cpp
+        src/real/RealFileSystem.cpp
+        src/real/RealWriter.cpp
 )
 add_library(alias_cd MODULE ${SOURCES})
 
 target_compile_definitions(alias_cd
-	PRIVATE
-		-DWINPORT_DIRECT
-		-DUNICODE
-		-DFAR_DONT_USE_INTERNALS
+        PRIVATE
+        -DWINPORT_DIRECT
+        -DUNICODE
+        -DFAR_DONT_USE_INTERNALS
 )
 
-target_include_directories(alias_cd
-	PRIVATE /home/dima/far2l-dev/src/far2l/far2sdk/
-)
+option(FAR2L_SDK_PATH "Path to far2l SDK" "")
+
+if(FAR2L_SDK_PATH)
+    target_include_directories(alias_cd PRIVATE ${FAR2L_SDK_PATH})
+else()
+    target_include_directories(alias_cd PRIVATE /home/dima/far2l-dev/src/far2l/far2sdk/)
+endif()
 
 get_target_property(INC_DIRS alias_cd INCLUDE_DIRECTORIES)
 
 set_target_properties(alias_cd
-	PROPERTIES
-		PREFIX ""
-		SUFFIX ".far-plug-wide"
+        PROPERTIES
+        PREFIX ""
+        SUFFIX ".far-plug-wide"
 )
 
-if(CMAKE_BUILD_TYPE STREQUAL "Release")
-    add_custom_command(TARGET alias_cd POST_BUILD
-        COMMAND ${CMAKE_STRIP} --strip-unneeded $<TARGET_FILE:alias_cd>
+if (CMAKE_BUILD_TYPE STREQUAL "Release")
+    add_custom_command(
+            TARGET alias_cd
+            POST_BUILD
+            COMMAND ${CMAKE_STRIP} --strip-unneeded $<TARGET_FILE:alias_cd>
     )
-endif()
+endif ()
 
 option(BUILD_TESTING "Build unit tests" ON)
 
-if(BUILD_TESTING)
+set(FETCHCONTENT_BASE_DIR ${CMAKE_SOURCE_DIR}/external)
+if (BUILD_TESTING)
     enable_testing()
 
     include(FetchContent)
     FetchContent_Declare(
-        googletest
-        GIT_REPOSITORY https://github.com/google/googletest.git
-        GIT_TAG        v1.14.0   # актуальная версия на момент написания
+            googletest
+            GIT_REPOSITORY
+            https://github.com/google/googletest.git
+            GIT_TAG
+            v1.14.0
+            # актуальная версия на момент написания
     )
     FetchContent_MakeAvailable(googletest)
 
     add_subdirectory(tests)
-endif()
+endif ()

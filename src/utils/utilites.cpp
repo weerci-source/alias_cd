@@ -52,42 +52,6 @@ std::string WStringToUTF8(const std::wstring &wstr)
     return result;
 }
 
-std::expected<std::wstring, std::error_code> getCurrentDirW() noexcept
-{
-    std::filesystem::path current;
-    try
-    {
-        current = std::filesystem::current_path();
-    }
-    catch (const std::filesystem::filesystem_error &e)
-    {
-        // Преобразуем исключение в error_code
-        return std::unexpected(e.code());
-    }
-    catch (...)
-    {
-        return std::unexpected(std::make_error_code(std::errc::io_error));
-    }
-    return current.wstring(); // или UTF8ToWString(current.string())
-}
-
-std::expected<void, std::error_code> setCurrentDirW(const std::wstring &path) noexcept
-{
-    try
-    {
-        std::filesystem::current_path(path);
-    }
-    catch (const std::filesystem::filesystem_error &e)
-    {
-        return std::unexpected(e.code());
-    }
-    catch (...)
-    {
-        return std::unexpected(std::make_error_code(std::errc::io_error));
-    }
-    return {};
-}
-
 std::wstring trim(const std::wstring &s)
 {
     auto first = s.find_first_not_of(L" \t\n\r");
