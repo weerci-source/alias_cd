@@ -11,6 +11,8 @@
 #include <vector>
 
 static struct PluginStartupInfo Info;
+static const int KEY_ENTER = 0x0D;
+static const int KEY_NUMENTER = 0x0D;
 static struct FarStandardFunctions FSF;
 
 #define MAX_ALIASES 100
@@ -27,6 +29,7 @@ static bool g_aliasesLoaded = false;
 
 struct AliasPanelState {
     std::vector<Alias> aliases;
+    int currentIndex = -1;
 };
 
 void Log(const char* msg) {
@@ -44,51 +47,30 @@ void LogW(const wchar_t* msg) {
 }
 
 void SetWideString(wchar_t* dst, size_t dstSize, const wchar_t* src) {
-    if (!dst || dstSize == 0) {
-        return;
-    }
-    if (!src) {
-        dst[0] = L'\0';
-        return;
-    }
-
+    if (!dst || dstSize == 0) return;
+    if (!src) { dst[0] = L'\0'; return; }
     size_t copySize = wcslen(src);
-    if (copySize >= dstSize) {
-        copySize = dstSize - 1;
-    }
-
+    if (copySize >= dstSize) copySize = dstSize - 1;
     wcsncpy(dst, src, copySize);
     dst[copySize] = L'\0';
 }
 
 std::string WideToUtf8(const wchar_t* input) {
     std::string result;
-    if (!input) {
-        return result;
-    }
-
+    if (!input) return result;
     std::vector<char> buffer(wcslen(input) * 4 + 1);
     size_t converted = wcstombs(buffer.data(), input, buffer.size());
-    if (converted == (size_t)-1) {
-        return result;
-    }
-
+    if (converted == (size_t)-1) return result;
     result.assign(buffer.data(), converted);
     return result;
 }
 
 std::wstring Utf8ToWide(const std::string& input) {
     std::wstring result;
-    if (input.empty()) {
-        return result;
-    }
-
+    if (input.empty()) return result;
     std::vector<wchar_t> buffer(input.size() + 1);
     size_t converted = mbstowcs(buffer.data(), input.c_str(), buffer.size());
-    if (converted == (size_t)-1) {
-        return result;
-    }
-
+    if (converted == (size_t)-1) return result;
     result.assign(buffer.data(), converted);
     return result;
 }
@@ -104,67 +86,41 @@ std::filesystem::path GetStorageFilePath() {
 
 bool LoadAliasesFromStorage() {
     g_aliasCount = 0;
-
     std::filesystem::path storageFile = GetStorageFilePath();
     std::ifstream file(storageFile.c_str(), std::ios::in);
-    if (!file) {
-        return false;
-    }
+    if (!file) return false;
 
     std::string line;
     while (std::getline(file, line)) {
-        if (line.empty()) {
-            continue;
-        }
-
+        if (line.empty()) continue;
         size_t sep = line.find('\t');
-        if (sep == std::string::npos) {
-            continue;
-        }
-
+        if (sep == std::string::npos) continue;
         std::wstring name = Utf8ToWide(line.substr(0, sep));
         std::wstring path = Utf8ToWide(line.substr(sep + 1));
-        if (name.empty() || path.empty()) {
-            continue;
-        }
-
-        if (g_aliasCount >= MAX_ALIASES) {
-            break;
-        }
-
+        if (name.empty() || path.empty()) continue;
+        if (g_aliasCount >= MAX_ALIASES) break;
         SetWideString(g_aliases[g_aliasCount].name, sizeof(g_aliases[g_aliasCount].name) / sizeof(g_aliases[g_aliasCount].name[0]), name.c_str());
         SetWideString(g_aliases[g_aliasCount].path, sizeof(g_aliases[g_aliasCount].path) / sizeof(g_aliases[g_aliasCount].path[0]), path.c_str());
         ++g_aliasCount;
     }
-
     return true;
 }
 
 bool SaveAliasesToStorage() {
     std::filesystem::path storageFile = GetStorageFilePath();
     std::ofstream file(storageFile.c_str(), std::ios::out | std::ios::trunc);
-    if (!file) {
-        return false;
-    }
-
+    if (!file) return false;
     for (int i = 0; i < g_aliasCount; ++i) {
         std::string nameBytes = WideToUtf8(g_aliases[i].name);
         std::string pathBytes = WideToUtf8(g_aliases[i].path);
-        if (nameBytes.empty() || pathBytes.empty()) {
-            continue;
-        }
-
+        if (nameBytes.empty() || pathBytes.empty()) continue;
         file << nameBytes << '\t' << pathBytes << '\n';
     }
-
     return true;
 }
 
 wchar_t* DuplicateWideString(const wchar_t* value) {
-    if (!value) {
-        return nullptr;
-    }
-
+    if (!value) return nullptr;
     size_t length = wcslen(value) + 1;
     wchar_t* copy = new wchar_t[length];
     wcscpy(copy, value);
@@ -185,9 +141,7 @@ const wchar_t* GetCurrentDir() {
     char buf[PATH_MAX];
     if (getcwd(buf, sizeof(buf))) {
         size_t len = mbstowcs(wbuf, buf, sizeof(wbuf)/sizeof(wchar_t));
-        if (len != (size_t)-1) {
-            return wbuf;
-        }
+        if (len != (size_t)-1) return wbuf;
     }
     return L"";
 }
@@ -204,29 +158,22 @@ int SetCurrentDir(const wchar_t* path) {
     }
     Log("chdir succeeded, now updating panel via Control");
 
-    HANDLE hPanel = PANEL_ACTIVE;  // (HANDLE)-1
-
-    // Меняем директорию панели
+    HANDLE hPanel = PANEL_ACTIVE;
     if (Info.Control(hPanel, FCTL_SETPANELDIR, 0, (LONG_PTR)path)) {
         Log("FCTL_SETPANELDIR succeeded");
     } else {
         Log("FCTL_SETPANELDIR failed");
     }
-
-    // Принудительно обновляем панель (перечитываем содержимое)
     if (Info.Control(hPanel, FCTL_UPDATEPANEL, 0, 0)) {
         Log("FCTL_UPDATEPANEL succeeded");
     } else {
         Log("FCTL_UPDATEPANEL failed");
     }
-
-    // Перерисовываем панель
     if (Info.Control(hPanel, FCTL_REDRAWPANEL, 0, 0)) {
         Log("FCTL_REDRAWPANEL succeeded");
     } else {
         Log("FCTL_REDRAWPANEL failed");
     }
-
     return 1;
 }
 
@@ -237,6 +184,10 @@ int FindAlias(const wchar_t* name) {
     }
     return -1;
 }
+
+// ===================================================================
+//  Экспортируемые функции плагина
+// ===================================================================
 
 SHAREDSYMBOL int WINAPI EXP_NAME(GetMinFarVersion)() {
     return FARMANAGERVERSION;
@@ -267,14 +218,9 @@ SHAREDSYMBOL HANDLE WINAPI EXP_NAME(OpenPlugin)(int OpenFrom, INT_PTR Item) {
     const wchar_t* cmdLine = reinterpret_cast<const wchar_t*>(Item);
     if (cmdLine && *cmdLine) {
         Log("Command line not empty");
-        
-        // Удаляем префикс "cd:" если он есть
         if (wcsncmp(cmdLine, L"cd:", 3) == 0) {
             cmdLine += 3;
         }
-        // Теперь cmdLine указывает на часть после "cd:"
-        // (например, ":test" или "test")
-        
         wchar_t cmd[512];
         wcsncpy(cmd, cmdLine, 511);
         cmd[511] = 0;
@@ -335,15 +281,13 @@ SHAREDSYMBOL HANDLE WINAPI EXP_NAME(OpenPlugin)(int OpenFrom, INT_PTR Item) {
     } else {
         return reinterpret_cast<HANDLE>(CreateAliasPanelState());
     }
-
     return INVALID_HANDLE_VALUE;
 }
 
-SHAREDSYMBOL int WINAPI EXP_NAME(GetFindData)(HANDLE hPlugin, struct PluginPanelItem **pPanelItem, int *pItemsNumber, int OpMode) {
-    if (!pPanelItem || !pItemsNumber) {
-        return FALSE;
-    }
+// ------------------------- GetFindData / FreeFindData -------------------------
 
+SHAREDSYMBOL int WINAPI EXP_NAME(GetFindData)(HANDLE hPlugin, struct PluginPanelItem **pPanelItem, int *pItemsNumber, int OpMode) {
+    if (!pPanelItem || !pItemsNumber) return FALSE;
     auto* state = reinterpret_cast<AliasPanelState*>(hPlugin);
     if (!state) {
         *pPanelItem = nullptr;
@@ -354,12 +298,15 @@ SHAREDSYMBOL int WINAPI EXP_NAME(GetFindData)(HANDLE hPlugin, struct PluginPanel
     const int count = static_cast<int>(state->aliases.size());
     auto* items = new PluginPanelItem[count];
     memset(items, 0, sizeof(PluginPanelItem) * count);
+    state->currentIndex = -1;
 
     for (int i = 0; i < count; ++i) {
         items[i].FindData.lpwszFileName = DuplicateWideString(state->aliases[i].name);
         items[i].FindData.dwFileAttributes = FILE_ATTRIBUTE_DIRECTORY;
+        // Используем Description для отображения пути в правой колонке (в режиме "Описания")
         items[i].Description = DuplicateWideString(state->aliases[i].path);
         items[i].UserData = i;
+        items[i].Flags = PPIF_PROCESSDESCR; // Включаем отображение описания
     }
 
     *pPanelItem = items;
@@ -368,53 +315,46 @@ SHAREDSYMBOL int WINAPI EXP_NAME(GetFindData)(HANDLE hPlugin, struct PluginPanel
 }
 
 SHAREDSYMBOL void WINAPI EXP_NAME(FreeFindData)(HANDLE hPlugin, struct PluginPanelItem *panelItem, int itemsNumber) {
-    if (!panelItem) {
-        return;
-    }
-
+    if (!panelItem) return;
     for (int i = 0; i < itemsNumber; ++i) {
         delete[] panelItem[i].FindData.lpwszFileName;
-        delete[] panelItem[i].Description;
+        if (panelItem[i].Description) delete[] panelItem[i].Description;
     }
-
     delete[] panelItem;
 }
 
-SHAREDSYMBOL void WINAPI EXP_NAME(GetOpenPluginInfo)(HANDLE hPlugin, struct OpenPluginInfo *info) {
-    if (!info) {
-        return;
-    }
+// ------------------------- GetOpenPluginInfo -------------------------
 
+SHAREDSYMBOL void WINAPI EXP_NAME(GetOpenPluginInfo)(HANDLE hPlugin, struct OpenPluginInfo *info) {
+    if (!info) return;
     info->StructSize = sizeof(*info);
-    info->Flags = OPIF_USEFILTER | OPIF_USESORTGROUPS | OPIF_USEHIGHLIGHTING | OPIF_ADDDOTS;
+    // Без OPIF_USECOLUMNS – используем стандартные колонки Far
+    info->Flags = OPIF_USEFILTER | OPIF_USESORTGROUPS | OPIF_USEHIGHLIGHTING |
+                  OPIF_ADDDOTS | OPIF_SHOWRIGHTALIGNNAMES;
     info->PanelTitle = L"Alias CD";
     info->HostFile = nullptr;
     info->CurDir = nullptr;
 }
 
-SHAREDSYMBOL int WINAPI EXP_NAME(ProcessHostFile)(HANDLE hPlugin, struct PluginPanelItem *panelItem, int itemsNumber, int OpMode) {
-    if (!panelItem || itemsNumber <= 0) {
-        return FALSE;
-    }
+// ------------------------- Обработка Enter (через ProcessHostFile) -------------------------
 
+SHAREDSYMBOL int WINAPI EXP_NAME(ProcessHostFile)(HANDLE hPlugin, struct PluginPanelItem *panelItem, int itemsNumber, int OpMode) {
+    if (!panelItem || itemsNumber <= 0) return FALSE;
     auto* state = reinterpret_cast<AliasPanelState*>(hPlugin);
-    if (!state) {
-        return FALSE;
-    }
+    if (!state) return FALSE;
 
     const int index = static_cast<int>(panelItem[0].UserData);
-    if (index < 0 || index >= static_cast<int>(state->aliases.size())) {
-        return FALSE;
-    }
+    if (index < 0 || index >= static_cast<int>(state->aliases.size())) return FALSE;
 
     const wchar_t* path = state->aliases[index].path;
     if (SetCurrentDir(path)) {
         Info.Control(hPlugin, FCTL_CLOSEPLUGIN, 0, 0);
         return TRUE;
     }
-
     return FALSE;
 }
+
+// ------------------------- Остальные обработчики -------------------------
 
 SHAREDSYMBOL void WINAPI EXP_NAME(ClosePlugin)(HANDLE hPlugin) {
     delete reinterpret_cast<AliasPanelState*>(hPlugin);
