@@ -48,7 +48,7 @@ Actions::Result Actions::gotoAlias(const PluginContext &ctx, std::wstring aliasN
 	if (!setDirResult)
 		return std::unexpected(setDirResult.error());
 
-	auto updateResult = effects_.updateActivePanel(ctx);
+	auto updateResult = effects_.updateActivePanel(ctx, (*found)->path);
 	if (!updateResult)
 		return std::unexpected(updateResult.error());
 

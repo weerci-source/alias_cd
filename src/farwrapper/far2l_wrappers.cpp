@@ -1,21 +1,35 @@
 #include "far2l_wrappers.h"
 #include <iostream>
 
+namespace
+{
+    void logFarError(const std::string &stage, const std::string &detail)
+    {
+        std::cerr << "[far2l] " << stage << ": " << detail << std::endl;
+    }
+}
+
 namespace far2l
 {
 
     bool isValidHandle(HANDLE h) noexcept
     {
-        return h != nullptr && h != INVALID_HANDLE_VALUE;
+        return h != nullptr;
     }
 
     std::expected<void, std::error_code> control(HANDLE hPanel, int command, int param1, void *param2,
                                                  ControlFunc controlFunc) noexcept
     {
         if (!controlFunc)
+        {
+            logFarError("control", "missing control callback");
             return std::unexpected(std::make_error_code(std::errc::function_not_supported));
+        }
         if (!isValidHandle(hPanel))
+        {
+            logFarError("control", "invalid handle (null handle)");
             return std::unexpected(std::make_error_code(std::errc::bad_file_descriptor));
+        }
 
         int result = 0;
         try
@@ -25,11 +39,15 @@ namespace far2l
         }
         catch (...)
         {
+            logFarError("control", "exception from FAR control callback");
             return std::unexpected(std::make_error_code(std::errc::io_error));
         }
 
         if (result != 0)
+        {
+            logFarError("control", "FAR control callback returned non-zero result: " + std::to_string(result));
             return std::unexpected(std::make_error_code(std::errc::operation_not_permitted));
+        }
         return {};
     }
 
@@ -39,6 +57,7 @@ namespace far2l
     {
         if (!msgFunc)
         {
+            logFarError("message", "missing message callback");
             return std::unexpected(std::make_error_code(std::errc::function_not_supported));
         }
 
@@ -55,11 +74,13 @@ namespace far2l
                                       static_cast<int>(itemPtrs.size()), icon);
             if (result != 0)
             {
+                logFarError("message", "FAR message callback returned non-zero result: " + std::to_string(result));
                 return std::unexpected(std::make_error_code(std::errc::io_error));
             }
         }
         catch (...)
         {
+            logFarError("message", "exception from FAR message callback");
             return std::unexpected(std::make_error_code(std::errc::io_error));
         }
         return {};

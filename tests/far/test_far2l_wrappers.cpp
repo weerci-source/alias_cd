@@ -91,10 +91,21 @@ TEST(Far2lControlTest, ReturnsErrorOnNullControlFunc) {
     EXPECT_EQ(result.error(), std::make_error_code(std::errc::function_not_supported));
 }
 
-TEST(Far2lControlTest, ReturnsErrorOnInvalidHandle) {
-    auto result = far2l::control(INVALID_HANDLE_VALUE, 0, 0, nullptr, mockControlSuccess);
+TEST(Far2lControlTest, ReturnsErrorOnNullHandle) {
+    auto result = far2l::control(nullptr, 0, 0, nullptr, mockControlSuccess);
     EXPECT_FALSE(result.has_value());
     EXPECT_EQ(result.error(), std::make_error_code(std::errc::bad_file_descriptor));
+}
+
+TEST(Far2lControlTest, AcceptsPanelPseudoHandles) {
+    g_mock_control_h = nullptr;
+    g_mock_control_cmd = 0;
+    g_mock_control_p1 = 0;
+    g_mock_control_p2 = 0;
+
+    auto result = far2l::control(PANEL_ACTIVE, 0, 0, nullptr, mockControlSuccess);
+    ASSERT_TRUE(result.has_value());
+    EXPECT_EQ(g_mock_control_h, PANEL_ACTIVE);
 }
 
 TEST(Far2lControlTest, ReturnsErrorWhenControlFuncFails) {
