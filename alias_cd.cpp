@@ -539,4 +539,4 @@ SHAREDSYMBOL int WINAPI EXP_NAME(SetDirectory)(HANDLE hPlugin, const wchar_t *Di
         Info.Control(hPlugin, FCTL_CLOSEPLUGIN, 0, 0);
         return TRUE;
     }
-}
+} 
