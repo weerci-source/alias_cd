@@ -160,6 +160,28 @@ TEST_F(ActionsTest, GotoAlias_GoesToExistingAliasAndUpdatesPanel) {
     EXPECT_EQ(*result, INVALID_HANDLE_VALUE);
 }
 
+TEST_F(ActionsTest, UpdateActivePanel_UsesProvidedPathForSetPanelDir) {
+    NiceMock<MockFarApi> mockFar;
+    Effects effects(mockFar);
+
+    std::wstring capturedPath;
+
+    EXPECT_CALL(mockFar, control(PANEL_ACTIVE, FCTL_SETPANELDIR, 0, _))
+        .WillOnce(::testing::Invoke([&capturedPath](HANDLE, int, int, void* p2) {
+            capturedPath = static_cast<const wchar_t*>(p2);
+            return std::expected<void, std::error_code>{};
+        }));
+    EXPECT_CALL(mockFar, control(PANEL_ACTIVE, FCTL_UPDATEPANEL, 0, nullptr))
+        .WillOnce(Return(std::expected<void, std::error_code>{}));
+    EXPECT_CALL(mockFar, control(PANEL_ACTIVE, FCTL_REDRAWPANEL, 0, nullptr))
+        .WillOnce(Return(std::expected<void, std::error_code>{}));
+
+    auto result = effects.updateActivePanel(ctx, L"/tmp/alias-dir");
+
+    ASSERT_TRUE(result.has_value());
+    EXPECT_EQ(capturedPath, L"/tmp/alias-dir");
+}
+
 TEST_F(ActionsTest, GotoAlias_NonExisting_ReturnsError) {
     NiceMock<MockFarApi> mockFar;
     NiceMock<MockFileSystem> mockFs;

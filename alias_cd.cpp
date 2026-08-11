@@ -326,7 +326,7 @@ SHAREDSYMBOL int WINAPI EXP_NAME(SetDirectory)(HANDLE hPlugin, const wchar_t *Di
         return FALSE;
     }
 
-    auto updateRes = effects->updateActivePanel(ctx);
+    auto updateRes = effects->updateActivePanel(ctx, it->path);
     if (!updateRes)
     {
         effects->showError(ctx, L"Directory changed, but panel update failed");
