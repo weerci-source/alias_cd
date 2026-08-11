@@ -528,15 +528,21 @@ SHAREDSYMBOL void WINAPI EXP_NAME(GetPluginInfo)(struct PluginInfo *info)
 
 SHAREDSYMBOL int WINAPI EXP_NAME(SetDirectory)(HANDLE hPlugin, const wchar_t *Dir, int OpMode)
 {
-    Log("SetDirectory called");
+    // Log((" SetDirectory: " + WideToUtf8(Dir)).c_str());
     if (!hPlugin || !Dir)
     {
         return FALSE;
     }
 
-    if (SetCurrentDir(Dir))
+    int idx = FindAlias(Dir);
+    auto a = g_aliases[idx].path;
+
+    Log((" SetDirectory: " + WideToUtf8(Dir) + WideToUtf8(a)).c_str());
+
+
+    if (SetCurrentDir(g_aliases[idx].path))
     {
         Info.Control(hPlugin, FCTL_CLOSEPLUGIN, 0, 0);
         return TRUE;
     }
-} 
+}
