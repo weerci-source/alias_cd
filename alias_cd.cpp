@@ -1,8 +1,14 @@
 #include <farplug-wide.h>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
+#include <cwchar>
+#include <filesystem>
+#include <fstream>
+#include <string>
 #include <unistd.h>
 #include <climits>
+#include <vector>
 
 static struct PluginStartupInfo Info;
 static struct FarStandardFunctions FSF;
@@ -17,6 +23,7 @@ struct Alias {
 
 static Alias g_aliases[MAX_ALIASES];
 static int g_aliasCount = 0;
+static bool g_aliasesLoaded = false;
 
 void Log(const char* msg) {
     FILE* f = fopen("/tmp/alias_cd.log", "a");
@@ -30,6 +37,123 @@ void LogW(const wchar_t* msg) {
     char mb[512];
     wcstombs(mb, msg, sizeof(mb));
     Log(mb);
+}
+
+void SetWideString(wchar_t* dst, size_t dstSize, const wchar_t* src) {
+    if (!dst || dstSize == 0) {
+        return;
+    }
+    if (!src) {
+        dst[0] = L'\0';
+        return;
+    }
+
+    size_t copySize = wcslen(src);
+    if (copySize >= dstSize) {
+        copySize = dstSize - 1;
+    }
+
+    wcsncpy(dst, src, copySize);
+    dst[copySize] = L'\0';
+}
+
+std::string WideToUtf8(const wchar_t* input) {
+    std::string result;
+    if (!input) {
+        return result;
+    }
+
+    std::vector<char> buffer(wcslen(input) * 4 + 1);
+    size_t converted = wcstombs(buffer.data(), input, buffer.size());
+    if (converted == (size_t)-1) {
+        return result;
+    }
+
+    result.assign(buffer.data(), converted);
+    return result;
+}
+
+std::wstring Utf8ToWide(const std::string& input) {
+    std::wstring result;
+    if (input.empty()) {
+        return result;
+    }
+
+    std::vector<wchar_t> buffer(input.size() + 1);
+    size_t converted = mbstowcs(buffer.data(), input.c_str(), buffer.size());
+    if (converted == (size_t)-1) {
+        return result;
+    }
+
+    result.assign(buffer.data(), converted);
+    return result;
+}
+
+std::filesystem::path GetStorageFilePath() {
+    const char* home = std::getenv("HOME");
+    std::filesystem::path base = home ? std::filesystem::path(home) : std::filesystem::current_path();
+    std::filesystem::path configDir = base / ".config" / "far2l";
+    std::error_code ec;
+    std::filesystem::create_directories(configDir, ec);
+    return configDir / "alias_cd_aliases.txt";
+}
+
+bool LoadAliasesFromStorage() {
+    g_aliasCount = 0;
+
+    std::filesystem::path storageFile = GetStorageFilePath();
+    std::ifstream file(storageFile.c_str(), std::ios::in);
+    if (!file) {
+        return false;
+    }
+
+    std::string line;
+    while (std::getline(file, line)) {
+        if (line.empty()) {
+            continue;
+        }
+
+        size_t sep = line.find('\t');
+        if (sep == std::string::npos) {
+            continue;
+        }
+
+        std::wstring name = Utf8ToWide(line.substr(0, sep));
+        std::wstring path = Utf8ToWide(line.substr(sep + 1));
+        if (name.empty() || path.empty()) {
+            continue;
+        }
+
+        if (g_aliasCount >= MAX_ALIASES) {
+            break;
+        }
+
+        SetWideString(g_aliases[g_aliasCount].name, sizeof(g_aliases[g_aliasCount].name) / sizeof(g_aliases[g_aliasCount].name[0]), name.c_str());
+        SetWideString(g_aliases[g_aliasCount].path, sizeof(g_aliases[g_aliasCount].path) / sizeof(g_aliases[g_aliasCount].path[0]), path.c_str());
+        ++g_aliasCount;
+    }
+
+    return true;
+}
+
+bool SaveAliasesToStorage() {
+    std::filesystem::path storageFile = GetStorageFilePath();
+    std::ofstream file(storageFile.c_str(), std::ios::out | std::ios::trunc);
+    if (!file) {
+        return false;
+    }
+
+    for (int i = 0; i < g_aliasCount; ++i) {
+        std::string nameBytes = WideToUtf8(g_aliases[i].name);
+        std::string pathBytes = WideToUtf8(g_aliases[i].path);
+        if (nameBytes.empty() || pathBytes.empty()) {
+            continue;
+        }
+
+        file << nameBytes << '\t' << pathBytes << '\n';
+    }
+
+    return true;
 }
 
 const wchar_t* GetCurrentDir() {
@@ -98,10 +222,18 @@ SHAREDSYMBOL void WINAPI EXP_NAME(SetStartupInfo)(const struct PluginStartupInfo
     Info = *info;
     FSF = *info->FSF;
     Info.FSF = &FSF;
+    if (!g_aliasesLoaded) {
+        LoadAliasesFromStorage();
+        g_aliasesLoaded = true;
+    }
     Log("SetStartupInfo called");
 }
 
 SHAREDSYMBOL HANDLE WINAPI EXP_NAME(OpenPlugin)(int OpenFrom, INT_PTR Item) {
+    if (!g_aliasesLoaded) {
+        LoadAliasesFromStorage();
+        g_aliasesLoaded = true;
+    }
     Log("OpenPlugin called");
     const wchar_t* cmdLine = reinterpret_cast<const wchar_t*>(Item);
     if (cmdLine && *cmdLine) {
@@ -135,15 +267,23 @@ SHAREDSYMBOL HANDLE WINAPI EXP_NAME(OpenPlugin)(int OpenFrom, INT_PTR Item) {
             if (idx == -1) {
                 if (g_aliasCount < MAX_ALIASES) {
                     idx = g_aliasCount++;
-                    wcscpy(g_aliases[idx].name, alias);
-                    wcscpy(g_aliases[idx].path, path);
-                    Log("Alias saved");
+                    SetWideString(g_aliases[idx].name, sizeof(g_aliases[idx].name) / sizeof(g_aliases[idx].name[0]), alias);
+                    SetWideString(g_aliases[idx].path, sizeof(g_aliases[idx].path) / sizeof(g_aliases[idx].path[0]), path);
+                    if (SaveAliasesToStorage()) {
+                        Log("Alias saved");
+                    } else {
+                        Log("Failed to save aliases to storage");
+                    }
                 } else {
                     Log("Too many aliases");
                 }
             } else {
-                wcscpy(g_aliases[idx].path, path);
-                Log("Alias updated");
+                SetWideString(g_aliases[idx].path, sizeof(g_aliases[idx].path) / sizeof(g_aliases[idx].path[0]), path);
+                if (SaveAliasesToStorage()) {
+                    Log("Alias updated");
+                } else {
+                    Log("Failed to save aliases to storage");
+                }
             }
             return INVALID_HANDLE_VALUE;
         } else {
