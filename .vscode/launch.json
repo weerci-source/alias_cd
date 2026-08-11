@@ -1,0 +1,26 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        // Конфигурация для отладки плагина FAR (если нужно)
+        {
+            "name": "Debug FAR Plugin",
+            "type": "cppdbg",
+            "request": "launch",
+            "preLaunchTask": "CMake: Build",
+            "program": "${workspaceFolder}/build/alias_cd.far-plug-wide",
+            "args": [],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ]
+        }
+    ]
+}

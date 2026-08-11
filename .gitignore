@@ -1,0 +1,39 @@
+# Папки сборки
+build/
+build-release/
+build-test/
+build-coverage/
+build-fast/
+cmake-build-*/         
+external/
+merge.txt
+# Объектные файлы
+*.o
+*.so
+*.a
+*.lo
+*.la
+
+# CMake-генераты
+CMakeFiles/
+cmake_install.cmake
+Makefile
+CMakeUserPresets.json
+CTestTestfile.cmake
+_CPack_Packages/
+
+# VS Code
+*.code-workspace
+
+# Архивы (если создаёте)
+*.tar.gz
+*.zip
+*.7z
+
+# Временные и системные файлы
+*.log
+*.tmp
+*.cache
+structure.txt
+*~
+.DS_Store
