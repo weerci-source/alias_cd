@@ -25,6 +25,10 @@ static Alias g_aliases[MAX_ALIASES];
 static int g_aliasCount = 0;
 static bool g_aliasesLoaded = false;
 
+struct AliasPanelState {
+    std::vector<Alias> aliases;
+};
+
 void Log(const char* msg) {
     FILE* f = fopen("/tmp/alias_cd.log", "a");
     if (f) {
@@ -156,6 +160,26 @@ bool SaveAliasesToStorage() {
     return true;
 }
 
+wchar_t* DuplicateWideString(const wchar_t* value) {
+    if (!value) {
+        return nullptr;
+    }
+
+    size_t length = wcslen(value) + 1;
+    wchar_t* copy = new wchar_t[length];
+    wcscpy(copy, value);
+    return copy;
+}
+
+AliasPanelState* CreateAliasPanelState() {
+    auto* state = new AliasPanelState();
+    state->aliases.reserve(g_aliasCount);
+    for (int i = 0; i < g_aliasCount; ++i) {
+        state->aliases.push_back(g_aliases[i]);
+    }
+    return state;
+}
+
 const wchar_t* GetCurrentDir() {
     static wchar_t wbuf[MAX_PATH_LEN];
     char buf[PATH_MAX];
@@ -235,6 +259,11 @@ SHAREDSYMBOL HANDLE WINAPI EXP_NAME(OpenPlugin)(int OpenFrom, INT_PTR Item) {
         g_aliasesLoaded = true;
     }
     Log("OpenPlugin called");
+
+    if (OpenFrom == OPEN_PLUGINSMENU) {
+        return reinterpret_cast<HANDLE>(CreateAliasPanelState());
+    }
+
     const wchar_t* cmdLine = reinterpret_cast<const wchar_t*>(Item);
     if (cmdLine && *cmdLine) {
         Log("Command line not empty");
@@ -286,6 +315,8 @@ SHAREDSYMBOL HANDLE WINAPI EXP_NAME(OpenPlugin)(int OpenFrom, INT_PTR Item) {
                 }
             }
             return INVALID_HANDLE_VALUE;
+        } else if (cmd[0] == L'\0') {
+            return reinterpret_cast<HANDLE>(CreateAliasPanelState());
         } else {
             Log("Goto command");
             wchar_t* alias = cmd;
@@ -302,11 +333,91 @@ SHAREDSYMBOL HANDLE WINAPI EXP_NAME(OpenPlugin)(int OpenFrom, INT_PTR Item) {
             return INVALID_HANDLE_VALUE;
         }
     } else {
-        Log("Empty command, showing help");
-        const wchar_t* msg = L"Usage: cd:alias or cd::alias";
-        Info.Message(Info.ModuleNumber, 0, L"Alias CD", &msg, 1, 0);
+        return reinterpret_cast<HANDLE>(CreateAliasPanelState());
     }
+
     return INVALID_HANDLE_VALUE;
+}
+
+SHAREDSYMBOL int WINAPI EXP_NAME(GetFindData)(HANDLE hPlugin, struct PluginPanelItem **pPanelItem, int *pItemsNumber, int OpMode) {
+    if (!pPanelItem || !pItemsNumber) {
+        return FALSE;
+    }
+
+    auto* state = reinterpret_cast<AliasPanelState*>(hPlugin);
+    if (!state) {
+        *pPanelItem = nullptr;
+        *pItemsNumber = 0;
+        return FALSE;
+    }
+
+    const int count = static_cast<int>(state->aliases.size());
+    auto* items = new PluginPanelItem[count];
+    memset(items, 0, sizeof(PluginPanelItem) * count);
+
+    for (int i = 0; i < count; ++i) {
+        items[i].FindData.lpwszFileName = DuplicateWideString(state->aliases[i].name);
+        items[i].FindData.dwFileAttributes = FILE_ATTRIBUTE_DIRECTORY;
+        items[i].Description = DuplicateWideString(state->aliases[i].path);
+        items[i].UserData = i;
+    }
+
+    *pPanelItem = items;
+    *pItemsNumber = count;
+    return TRUE;
+}
+
+SHAREDSYMBOL void WINAPI EXP_NAME(FreeFindData)(HANDLE hPlugin, struct PluginPanelItem *panelItem, int itemsNumber) {
+    if (!panelItem) {
+        return;
+    }
+
+    for (int i = 0; i < itemsNumber; ++i) {
+        delete[] panelItem[i].FindData.lpwszFileName;
+        delete[] panelItem[i].Description;
+    }
+
+    delete[] panelItem;
+}
+
+SHAREDSYMBOL void WINAPI EXP_NAME(GetOpenPluginInfo)(HANDLE hPlugin, struct OpenPluginInfo *info) {
+    if (!info) {
+        return;
+    }
+
+    info->StructSize = sizeof(*info);
+    info->Flags = OPIF_USEFILTER | OPIF_USESORTGROUPS | OPIF_USEHIGHLIGHTING | OPIF_ADDDOTS;
+    info->PanelTitle = L"Alias CD";
+    info->HostFile = nullptr;
+    info->CurDir = nullptr;
+}
+
+SHAREDSYMBOL int WINAPI EXP_NAME(ProcessHostFile)(HANDLE hPlugin, struct PluginPanelItem *panelItem, int itemsNumber, int OpMode) {
+    if (!panelItem || itemsNumber <= 0) {
+        return FALSE;
+    }
+
+    auto* state = reinterpret_cast<AliasPanelState*>(hPlugin);
+    if (!state) {
+        return FALSE;
+    }
+
+    const int index = static_cast<int>(panelItem[0].UserData);
+    if (index < 0 || index >= static_cast<int>(state->aliases.size())) {
+        return FALSE;
+    }
+
+    const wchar_t* path = state->aliases[index].path;
+    if (SetCurrentDir(path)) {
+        Info.Control(hPlugin, FCTL_CLOSEPLUGIN, 0, 0);
+        return TRUE;
+    }
+
+    return FALSE;
+}
+
+SHAREDSYMBOL void WINAPI EXP_NAME(ClosePlugin)(HANDLE hPlugin) {
+    delete reinterpret_cast<AliasPanelState*>(hPlugin);
 }
 
 SHAREDSYMBOL void WINAPI EXP_NAME(GetPluginInfo)(struct PluginInfo *info) {
