@@ -43,7 +43,7 @@
             "command": "bash",
             "args": [
                 "-c",
-                "rm -rf build-coverage && mkdir build-coverage && cd build-coverage && cmake .. -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=ON -DCMAKE_CXX_FLAGS=\"--coverage\" -DCMAKE_EXE_LINKER_FLAGS=\"--coverage\" -DFETCHCONTENT_BASE_DIR=${workspaceFolder}/external && cmake --build . --target tests && ctest --output-on-failure && mkdir -p coverage_report && gcovr --root .. --html --html-details -o coverage_report/index.html --exclude '.*/tests/.*' --exclude '.*/build-coverage/_deps/.*' && gcovr --root .. --txt -o coverage_report.txt --exclude '.*/tests/.*' --exclude '.*/build-coverage/_deps/.*' && firefox coverage_report/index.html && echo 'Coverage report generated in build-coverage/coverage_report/index.html and text report in build-coverage/coverage_report.txt'"
+                "cd build-coverage && cmake .. -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=ON -DCMAKE_CXX_FLAGS=\"--coverage\" -DCMAKE_EXE_LINKER_FLAGS=\"--coverage\" -DFETCHCONTENT_BASE_DIR=${workspaceFolder}/external && cmake --build . --target tests && ctest --output-on-failure && mkdir -p coverage_report && gcovr --root .. --html --html-details -o coverage_report/index.html --exclude '.*/tests/.*' --exclude '.*/build-coverage/_deps/.*' && gcovr --root .. --txt -o coverage_report.txt --exclude '.*/tests/.*' --exclude '.*/build-coverage/_deps/.*' && firefox coverage_report/index.html && echo 'Coverage report generated in build-coverage/coverage_report/index.html and text report in build-coverage/coverage_report.txt'"
             ],
             "group": "test",
             "problemMatcher": [],

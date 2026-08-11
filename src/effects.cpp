@@ -27,7 +27,7 @@ VoidResult Effects::message(const PluginContext &ctx,
 
 void Effects::showError(const PluginContext &ctx, const std::wstring &text) const
 {
-    log("Alias CD Error: " + std::string(text.begin(), text.end()));
+    log("Show error: " + std::string(text.begin(), text.end()));
     static_cast<void>(message(ctx, L"Alias CD Error", {text}));
 }
 
