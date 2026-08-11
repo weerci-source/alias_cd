@@ -4,8 +4,7 @@
             "name": "Linux",
             "includePath": [
                 "${workspaceFolder}/**",
-                "/home/dima/projects/far2l/far2l",
-                "/home/dima/projects/far2l/far2l/far2sdk"
+                "/home/dima/far2l-dev/src/far2l/far2sdk/"
             ],
             "defines": [],
             "compilerPath": "/usr/bin/gcc",
